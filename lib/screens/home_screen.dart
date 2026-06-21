@@ -1,0 +1,543 @@
+import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:go_router/go_router.dart';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+
+const String apiBase = 'http://localhost:8000/api/v1';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  List<Map<String, dynamic>> _routes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _loadRoutes();
+  }
+
+  Future<void> _loadRoutes() async {
+    try {
+      final dio = Dio();
+      final res = await dio.get('$apiBase/routes/');
+      final data = res.data;
+      final list = data is Map ? (data['data'] ?? []) : data;
+      if (mounted) {
+        setState(() => _routes = List<Map<String, dynamic>>.from(list));
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  String? _getToken() => html.window.localStorage['token'];
+
+  void _logout() {
+    html.window.localStorage.remove('token');
+    context.go('/login');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
+        title: const Text('Жолаушы', style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white60,
+          tabs: const [
+            Tab(icon: Icon(Icons.people_alt_outlined), text: 'Попутки'),
+            Tab(icon: Icon(Icons.directions_bus_outlined), text: 'Поездки'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _PoputkaTab(getToken: _getToken, routes: _routes),
+          _TripsTab(getToken: _getToken),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showCreateRequestDialog(context),
+        icon: const Icon(Icons.add),
+        label: const Text('Создать заявку'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
+      ),
+    );
+  }
+
+  void _showCreateRequestDialog(BuildContext context) async {
+    if (_routes.isEmpty) await _loadRoutes();
+    if (!context.mounted) return;
+
+    Map<String, dynamic>? selectedRoute;
+    final seatsController = TextEditingController(text: '1');
+    DateTime? selectedDate;
+    TimeOfDay? selectedTime;
+    final dialogRoutes = _routes;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return Padding(
+          padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Новая заявка', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              DropdownButtonFormField<Map<String, dynamic>>(
+                value: selectedRoute,
+                decoration: InputDecoration(
+                  labelText: 'Маршрут',
+                  prefixIcon: const Icon(Icons.route_outlined),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+                items: dialogRoutes.map((r) {
+                  return DropdownMenuItem(
+                    value: r,
+                    child: Text('${r['city_from']} → ${r['city_to']}'),
+                  );
+                }).toList(),
+                onChanged: (v) => setModalState(() => selectedRoute = v),
+                hint: const Text('Выберите маршрут'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: seatsController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Количество мест',
+                  prefixIcon: Icon(Icons.event_seat_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: () async {
+                  final date = await showDatePicker(
+                    context: ctx,
+                    initialDate: DateTime.now().add(const Duration(days: 1)),
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(const Duration(days: 30)),
+                  );
+                  if (date != null) setModalState(() => selectedDate = date);
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[400]!),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today_outlined, color: Colors.grey),
+                      const SizedBox(width: 12),
+                      Text(
+                        selectedDate == null
+                            ? 'Выберите дату'
+                            : '${selectedDate!.day}.${selectedDate!.month}.${selectedDate!.year}',
+                        style: TextStyle(color: selectedDate == null ? Colors.grey : Colors.black),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: () async {
+                  final time = await showTimePicker(
+                    context: ctx,
+                    initialTime: const TimeOfDay(hour: 8, minute: 0),
+                  );
+                  if (time != null) setModalState(() => selectedTime = time);
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[400]!),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.access_time_outlined, color: Colors.grey),
+                      const SizedBox(width: 12),
+                      Text(
+                        selectedTime == null
+                            ? 'Выберите время'
+                            : '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}',
+                        style: TextStyle(color: selectedTime == null ? Colors.grey : Colors.black),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (selectedRoute == null || selectedDate == null || selectedTime == null) return;
+                    final token = _getToken();
+                    if (token == null) return;
+                    final departure = DateTime(
+                      selectedDate!.year,
+                      selectedDate!.month,
+                      selectedDate!.day,
+                      selectedTime!.hour,
+                      selectedTime!.minute,
+                    );
+                    try {
+                      final dio = Dio();
+                      await dio.post(
+                        '$apiBase/trip-requests/',
+                        data: {
+                          'route_id': selectedRoute!['id'],
+                          'seats_needed': int.tryParse(seatsController.text) ?? 1,
+                          'departure_date': departure.toIso8601String(),
+                        },
+                        options: Options(headers: {
+                          'Authorization': 'Bearer $token',
+                          'Content-Type': 'application/json',
+                        }),
+                      );
+                      if (ctx.mounted) {
+                        Navigator.pop(ctx);
+                        _tabController.animateTo(0);
+                      }
+                    } catch (e) {
+                      if (ctx.mounted) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          SnackBar(content: Text('Ошибка: $e')),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Создать заявку', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        );
+        },
+      ),
+    );
+  }
+}
+
+// ─── ТАБ: ПОПУТКИ ───────────────────────────────────────────────────────────
+
+class _PoputkaTab extends StatefulWidget {
+  final String? Function() getToken;
+  final List<Map<String, dynamic>> routes;
+  const _PoputkaTab({required this.getToken, required this.routes});
+
+  @override
+  State<_PoputkaTab> createState() => _PoputkaTabState();
+}
+
+class _PoputkaTabState extends State<_PoputkaTab> {
+  List<dynamic> _requests = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    final token = widget.getToken();
+    if (token == null) return;
+    try {
+      final dio = Dio();
+      final res = await dio.get(
+        '$apiBase/trip-requests/',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final data = res.data;
+      setState(() => _requests = data is List ? data : (data['data'] ?? []));
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _routeName(int? routeId) {
+    if (routeId == null) return '?';
+    final r = widget.routes.where((r) => r['id'] == routeId).firstOrNull;
+    if (r == null) return 'Маршрут #$routeId';
+    return '${r['city_from']} → ${r['city_to']}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_requests.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.people_alt_outlined, size: 64, color: Colors.grey[300]),
+            const SizedBox(height: 12),
+            Text('Нет активных заявок', style: TextStyle(color: Colors.grey[500])),
+            const SizedBox(height: 8),
+            Text('Нажмите "Создать заявку" чтобы найти попутчиков',
+                style: TextStyle(color: Colors.grey[400], fontSize: 13)),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _fetch,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _requests.length,
+        itemBuilder: (_, i) => _RequestCard(
+          request: _requests[i],
+          routeName: _routeName(_requests[i]['route_id']),
+        ),
+      ),
+    );
+  }
+}
+
+class _RequestCard extends StatelessWidget {
+  final Map<String, dynamic> request;
+  final String routeName;
+  const _RequestCard({required this.request, required this.routeName});
+
+  @override
+  Widget build(BuildContext context) {
+    final date = request['departure_date'] != null
+        ? DateTime.tryParse(request['departure_date'])
+        : null;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey[200]!),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(routeName,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                      color: Colors.blue[50], borderRadius: BorderRadius.circular(8)),
+                  child: Text('${request['seats_needed'] ?? 1} мест',
+                      style: TextStyle(color: Colors.blue[700], fontSize: 12)),
+                ),
+              ],
+            ),
+            if (date != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey[500]),
+                  const SizedBox(width: 4),
+                  Text('${date.day}.${date.month}.${date.year}',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── ТАБ: ПОЕЗДКИ ───────────────────────────────────────────────────────────
+
+class _TripsTab extends StatefulWidget {
+  final String? Function() getToken;
+  const _TripsTab({required this.getToken});
+
+  @override
+  State<_TripsTab> createState() => _TripsTabState();
+}
+
+class _TripsTabState extends State<_TripsTab> {
+  List<dynamic> _trips = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    final token = widget.getToken();
+    if (token == null) return;
+    try {
+      final dio = Dio();
+      final res = await dio.get(
+        '$apiBase/trips/',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final data = res.data;
+      setState(() => _trips = data is List ? data : (data['data'] ?? []));
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_trips.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.directions_bus_outlined, size: 64, color: Colors.grey[300]),
+            const SizedBox(height: 12),
+            Text('Нет доступных поездок', style: TextStyle(color: Colors.grey[500])),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _fetch,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _trips.length,
+        itemBuilder: (_, i) => _TripCard(trip: _trips[i]),
+      ),
+    );
+  }
+}
+
+class _TripCard extends StatelessWidget {
+  final Map<String, dynamic> trip;
+  const _TripCard({required this.trip});
+
+  @override
+  Widget build(BuildContext context) {
+    final date = trip['departure_time'] != null
+        ? DateTime.tryParse(trip['departure_time'])
+        : null;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey[200]!),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {},
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.directions_bus,
+                        color: Theme.of(context).colorScheme.primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Маршрут #${trip['route_id']}',
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                        if (date != null)
+                          Text(
+                            '${date.day}.${date.month}.${date.year} в ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
+                            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${trip['price_per_seat']} ₸',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Theme.of(context).colorScheme.primary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Icon(Icons.event_seat_outlined, size: 16, color: Colors.grey[500]),
+                  const SizedBox(width: 4),
+                  Text('${trip['seats_available']} мест свободно',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                  const Spacer(),
+                  ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 36),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('Забронировать'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
