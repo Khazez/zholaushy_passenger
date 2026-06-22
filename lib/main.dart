@@ -6,6 +6,7 @@ import 'dart:html' as html;
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/history_screen.dart';
 
 void main() {
   runApp(const ZholaushyApp());
@@ -22,8 +23,18 @@ class ZholaushyApp extends StatelessWidget {
       initialLocation: token != null ? '/home' : '/login',
       routes: [
         GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-        GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
+        GoRoute(
+          path: '/register',
+          builder: (_, state) {
+            final extra = state.extra as Map<String, String>?;
+            return RegisterScreen(
+              phone: extra?['phone'] ?? '',
+              code: extra?['code'] ?? '',
+            );
+          },
+        ),
         GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
+        GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
       ],
     );
 

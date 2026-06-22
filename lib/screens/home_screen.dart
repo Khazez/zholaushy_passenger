@@ -58,6 +58,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         foregroundColor: Colors.white,
         title: const Text('Жолаушы', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'История',
+            onPressed: () => context.push('/history'),
+          ),
           IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
         ],
         bottom: TabBar(
@@ -75,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         controller: _tabController,
         children: [
           _PoputkaTab(getToken: _getToken, routes: _routes),
-          _TripsTab(getToken: _getToken),
+          _TripsTab(getToken: _getToken, routes: _routes),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -395,7 +400,8 @@ class _RequestCard extends StatelessWidget {
 
 class _TripsTab extends StatefulWidget {
   final String? Function() getToken;
-  const _TripsTab({required this.getToken});
+  final List<Map<String, dynamic>> routes;
+  const _TripsTab({required this.getToken, required this.routes});
 
   @override
   State<_TripsTab> createState() => _TripsTabState();
@@ -428,6 +434,13 @@ class _TripsTabState extends State<_TripsTab> {
     }
   }
 
+  String _routeName(int? routeId) {
+    if (routeId == null) return '?';
+    final r = widget.routes.where((r) => r['id'] == routeId).firstOrNull;
+    if (r == null) return 'Маршрут #$routeId';
+    return '${r['city_from']} → ${r['city_to']}';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
@@ -448,7 +461,12 @@ class _TripsTabState extends State<_TripsTab> {
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _trips.length,
-        itemBuilder: (_, i) => _TripCard(trip: _trips[i]),
+        itemBuilder: (_, i) => _TripCard(
+          trip: _trips[i],
+          routeName: _routeName(_trips[i]['route_id']),
+          getToken: widget.getToken,
+          onBooked: _fetch,
+        ),
       ),
     );
   }
@@ -456,7 +474,101 @@ class _TripsTabState extends State<_TripsTab> {
 
 class _TripCard extends StatelessWidget {
   final Map<String, dynamic> trip;
-  const _TripCard({required this.trip});
+  final String routeName;
+  final String? Function() getToken;
+  final VoidCallback onBooked;
+  const _TripCard({
+    required this.trip,
+    required this.routeName,
+    required this.getToken,
+    required this.onBooked,
+  });
+
+  void _showBookingDialog(BuildContext context) {
+    int seats = 1;
+    final price = (trip['price_per_seat'] ?? 0).toDouble();
+    final available = trip['seats_available'] ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text('Бронирование'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(routeName, style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Text('Мест: '),
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: seats > 1 ? () => setState(() => seats--) : null,
+                  ),
+                  Text('$seats', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: seats < available ? () => setState(() => seats++) : null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Итого: ${(price * seats).toStringAsFixed(0)} ₸',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Отмена'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final token = getToken();
+                if (token == null) return;
+                try {
+                  final dio = Dio();
+                  await dio.post(
+                    '$apiBase/bookings/?trip_id=${trip['id']}&seats_count=$seats',
+                    options: Options(headers: {'Authorization': 'Bearer $token'}),
+                  );
+                  if (ctx.mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Забронировано! ${(price * seats).toStringAsFixed(0)} ₸'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    onBooked();
+                  }
+                } catch (e) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text('Ошибка: $e')),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Подтвердить'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -470,72 +582,68 @@ class _TripCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: Colors.grey[200]!),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {},
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.directions_bus,
-                        color: Theme.of(context).colorScheme.primary, size: 20),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Маршрут #${trip['route_id']}',
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                        if (date != null)
-                          Text(
-                            '${date.day}.${date.month}.${date.year} в ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
-                            style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                          ),
-                      ],
-                    ),
+                  child: Icon(Icons.directions_bus,
+                      color: Theme.of(context).colorScheme.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(routeName,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                      if (date != null)
+                        Text(
+                          '${date.day}.${date.month}.${date.year} в ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                        ),
+                    ],
                   ),
-                  Text(
-                    '${trip['price_per_seat']} ₸',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: Theme.of(context).colorScheme.primary),
+                ),
+                Text(
+                  '${trip['price_per_seat']} ₸',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Theme.of(context).colorScheme.primary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.event_seat_outlined, size: 16, color: Colors.grey[500]),
+                const SizedBox(width: 4),
+                Text('${trip['seats_available']} мест свободно',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                const Spacer(),
+                ElevatedButton(
+                  onPressed: () => _showBookingDialog(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Icon(Icons.event_seat_outlined, size: 16, color: Colors.grey[500]),
-                  const SizedBox(width: 4),
-                  Text('${trip['seats_available']} мест свободно',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                  const Spacer(),
-                  ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(0, 36),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: const Text('Забронировать'),
-                  ),
-                ],
-              ),
-            ],
-          ),
+                  child: const Text('Забронировать'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
