@@ -10,7 +10,8 @@
 ## Auth
 - Токен: localStorage['token']
 - Логин: POST /api/v1/auth/login → {phone, password} → {access_token}
-- После register нужен отдельный login (register возвращает только message)
+- После register нужен отдельный login (register возвращает только message для пассажира)
+- Для водителей register возвращает access_token сразу (role=driver)
 
 ## Адресная модель (важно!)
 `extra_pickups` и `extra_destinations` — списки объектов `{address: str, entrance: str?}`.
@@ -29,8 +30,9 @@ class _AddrPair {
 ## Что реализовано ✅
 
 ### Таб "Поездки"
-- Список активных заявок (open) и принятых (accepted, с данными водителя)
-- Список активных броней
+- Оранжевые карточки: заявки со статусом open, показывают badge "N отклик(ов)"
+- Синие карточки: заявки со статусом accepted (с данными водителя)
+- Брони (bookings) убраны с главного экрана
 - Кнопка "Создать заявку" → _CreateRequestScreen
 - Тап на ожидающую заявку → _OffersScreen (список офферов)
 
@@ -57,8 +59,11 @@ class _AddrPair {
 
 ### Прочее
 - История поездок (history_screen.dart)
-- Профиль (profile_screen.dart)
+- Профиль (profile_screen.dart) — ошибки загрузки теперь показываются в snackbar
 - Поддержка, Настройки, О приложении (info_screens.dart)
+  - Телефон кликабельный (tel:), WhatsApp и Telegram открывают мессенджеры
+  - Форма → кнопка "Открыть в WhatsApp" с предзаполненным текстом
+  - Контакты: константы `_supportPhone`, `_supportWhatsApp`, `_supportTelegram` в начале файла
 
 ## Структура файлов
 ```

@@ -166,7 +166,7 @@ class _TripsTab extends StatefulWidget {
 
 class _TripsTabState extends State<_TripsTab> {
   List<dynamic> _requests = [];
-  List<dynamic> _bookings = [];
+  Map<int, int> _offerCounts = {};
   bool _loading = true;
 
   @override
@@ -195,15 +195,29 @@ class _TripsTabState extends State<_TripsTab> {
       _requests = all.where((r) => r['status'] == 'open' || r['status'] == 'accepted').toList();
     } catch (_) {}
 
-    try {
-      final res = await dio.get(
-        '$apiBase/bookings/my',
-        options: Options(headers: headers),
-      ).timeout(const Duration(seconds: 6));
-      final data = res.data;
-      final all = data is List ? data : (data['data'] ?? []);
-      _bookings = all.where((b) => b['status'] != 'cancelled' && b['status'] != 'completed').toList();
-    } catch (_) {}
+    // Загружаем количество офферов для каждой open-заявки параллельно
+    final pendingIds = _requests
+        .where((r) => r['status'] == 'open')
+        .map((r) => r['id'] as int)
+        .toList();
+    if (pendingIds.isNotEmpty) {
+      final entries = await Future.wait(
+        pendingIds.map((id) async {
+          try {
+            final r = await dio.get(
+              '$apiBase/trip-requests/$id/offers',
+              options: Options(headers: headers),
+            ).timeout(const Duration(seconds: 5));
+            return MapEntry(id, r.data is List ? (r.data as List).length : 0);
+          } catch (_) {
+            return MapEntry(id, 0);
+          }
+        }),
+      );
+      _offerCounts = Map.fromEntries(entries);
+    } else {
+      _offerCounts = {};
+    }
 
     if (mounted) setState(() => _loading = false);
   }
@@ -240,7 +254,7 @@ class _TripsTabState extends State<_TripsTab> {
   Widget build(BuildContext context) {
     final acceptedRequests = _requests.where((r) => r['status'] == 'accepted').toList();
     final pendingRequests = _requests.where((r) => r['status'] == 'open').toList();
-    final hasContent = _bookings.isNotEmpty || _requests.isNotEmpty;
+    final hasContent = _requests.isNotEmpty;
 
     return Column(
       children: [
@@ -290,13 +304,9 @@ class _TripsTabState extends State<_TripsTab> {
                               onRefresh: _load,
                             ),
 
-                          // Активные брони
-                          for (final b in _bookings)
-                            _ActiveBookingCard(booking: b, onRefresh: _load),
-
                           // Ожидающие заявки — маленькие
                           if (pendingRequests.isNotEmpty) ...[
-                            if (acceptedRequests.isNotEmpty || _bookings.isNotEmpty)
+                            if (acceptedRequests.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 8, bottom: 4),
                                 child: Text('Ожидают водителя',
@@ -307,6 +317,7 @@ class _TripsTabState extends State<_TripsTab> {
                                 request: r,
                                 routeName: r['route_name'] ?? _routeName(r['route_id']),
                                 onRefresh: _load,
+                                offerCount: _offerCounts[r['id'] as int] ?? 0,
                               ),
                           ],
                         ],
@@ -447,7 +458,8 @@ class _PendingRequestCard extends StatelessWidget {
   final Map<String, dynamic> request;
   final String routeName;
   final VoidCallback? onRefresh;
-  const _PendingRequestCard({required this.request, required this.routeName, this.onRefresh});
+  final int offerCount;
+  const _PendingRequestCard({required this.request, required this.routeName, this.onRefresh, this.offerCount = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -488,8 +500,25 @@ class _PendingRequestCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                      color: Colors.orange[50], borderRadius: BorderRadius.circular(8)),
-                  child: Text('Ожидает', style: TextStyle(color: Colors.orange[700], fontSize: 11)),
+                    color: offerCount > 0 ? Colors.green[50] : Colors.orange[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: offerCount > 0
+                      ? Row(mainAxisSize: MainAxisSize.min, children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: Colors.green[600],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text('$offerCount',
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                          ),
+                          const SizedBox(width: 4),
+                          Text('отклик', style: TextStyle(color: Colors.green[700], fontSize: 11, fontWeight: FontWeight.w600)),
+                        ])
+                      : Text('Ожидает', style: TextStyle(color: Colors.orange[700], fontSize: 11)),
                 ),
               ]),
               const SizedBox(height: 6),
@@ -507,8 +536,11 @@ class _PendingRequestCard extends StatelessWidget {
                   _chip(Icons.location_on_outlined, request['pickup_address']),
               ]),
               const SizedBox(height: 6),
-              Text('Нажмите, чтобы увидеть предложения',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 10)),
+              Text(
+                offerCount > 0 ? 'Нажмите, чтобы принять водителя' : 'Нажмите, чтобы увидеть предложения',
+                style: TextStyle(
+                    color: offerCount > 0 ? Colors.green[600] : Colors.grey[400], fontSize: 10),
+              ),
             ],
           ),
         ),
