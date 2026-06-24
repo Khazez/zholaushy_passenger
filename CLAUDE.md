@@ -142,67 +142,51 @@ FIREBASE_CREDENTIALS_PATH=./firebase-key.json
 CANCELLATION_FEE_PERCENT=20
 ```
 
+## Адресная модель (важно!)
+
+extra_pickups и extra_destinations — это списки объектов `{address: str, entrance: str?}`.
+В Flutter используется класс `_AddrPair` (два TextEditingController: address + entrance).
+НЕ хранить как plain strings — бэкенд ожидает объекты.
+
 ## Текущий статус
 
-### Бэкенд ✅ (полностью готов)
-- [x] FastAPI + PostgreSQL + Alembic
-- [x] Auth: регистрация, JWT, admin/login
-- [x] Все модели и эндпоинты
-- [x] MinIO, Firebase, Docker-compose
-- [x] admin.py: /admin/stats и /admin/trips
+### Flutter — пассажир (zholaushy_passenger) ✅
+- [x] GoRouter, dart:html localStorage, token = 'token'
+- [x] Login/Register с OTP
+- [x] Таб Поездки: активные заявки, принятые заявки (с данными водителя), брони
+- [x] Таб Попутки: поиск поездок водителей по маршруту, бронирование
+- [x] Создать заявку: маршрут, дата/время (DateTimePicker), места, оплата, для кого
+- [x] Адрес А + подъезд, доп. адреса подачи (+ кнопка добавить)
+- [x] Адрес Б + подъезд, доп. точки назначения (+ кнопка добавить)
+- [x] Редактировать заявку (patch), отменить заявку
+- [x] Экран офферов: принять водителя через bottom sheet подтверждения адреса
+- [x] История поездок, профиль, поддержка, настройки, о приложении
+- [x] _AddrPair класс: пара контроллеров для каждого доп. адреса
 
-### Веб-панель (taxi-admin) ✅ (полностью готова)
-- [x] Логин: app/login/page.tsx
-- [x] Дашборд: app/dashboard/page.tsx (реальная статистика)
-- [x] Водители: app/dashboard/drivers/page.tsx (верификация)
-- [x] Маршруты: app/dashboard/routes/page.tsx
-- [x] Поездки: app/dashboard/trips/page.tsx
-- [x] Настройки: app/dashboard/settings/page.tsx
-
-### Flutter — приложение пассажира (zholaushy_passenger)
-- [x] Проект создан: C:\Users\KhazezB\zholaushy_passenger
-- [x] Пакеты: dio 5.9.2, go_router 17.3.0, shared_preferences (не используется на вебе)
-- [x] main.dart — GoRouter, dart:html localStorage для токена
-- [x] screens/login_screen.dart — логин через /auth/login
-- [x] screens/register_screen.dart — регистрация + автологин
-- [x] screens/home_screen.dart — два таба: Попутки + Поездки, кнопка "Создать заявку"
-- [ ] **ТЕКУЩАЯ ПРОБЛЕМА**: GET /api/v1/trip-requests/ возвращает 422
-  - Эндпоинт существует (проверено в Swagger)
-  - Возможно требует query параметры или другой формат авторизации
-  - Нужно проверить что именно ожидает эндпоинт через Swagger Try it out
-- [ ] Экран деталей поездки + бронирование
-- [ ] Профиль пользователя
-- [ ] История поездок
-- [ ] Уведомления об офферах от водителей
-
-### Flutter — приложение водителя
-- [ ] Не начато
+### Бэкенд (taxi-backend) ✅
+- token-ключ пассажира: localStorage['token']
+- extra_pickups/extra_destinations → list of `{address, entrance?}` objects
+- trip-requests через ДЕФИС: /api/v1/trip-requests/
 
 ## Структура файлов
 
 ```
-taxi-backend/                 # https://github.com/Khazez/taxi
-├── app/
-│   ├── main.py               # CORS: allow_origins=["*"], allow_credentials=False
-│   ├── api/v1/
-│   │   ├── auth.py           # register возвращает message, НЕ токен
-│   │   ├── trip_requests.py  # роутер с prefix /trip-requests (дефис!)
-│   │   ├── admin.py          # создан вручную
-│   │   └── settings.py       # current_user.get("role")
-│   └── db/database.py        # НЕ трогать, только движок + get_db
-├── insert_setting.py         # psycopg2 seed настроек
-└── docker-compose.yml
-
-taxi-admin/                   # https://github.com/Khazez/taxi_admin
-└── app/dashboard/            # все страницы готовы
-
-zholaushy_passenger/          # Flutter пассажир
-└── lib/
-    ├── main.dart
-    └── screens/
-        ├── login_screen.dart
-        ├── register_screen.dart
-        └── home_screen.dart
+zholaushy_passenger/lib/
+├── main.dart                    # GoRouter: /login, /register, /home, /history
+└── screens/
+    ├── login_screen.dart        # OTP-вход
+    ├── register_screen.dart     # регистрация
+    ├── home_screen.dart         # ВСЯ логика: табы, формы, офферы
+    │   ├── _AddrPair            # класс: пара контроллеров (address + entrance)
+    │   ├── _TripsTab            # активные заявки и брони
+    │   ├── _PoputkaTab          # поиск готовых поездок
+    │   ├── _BookingFormScreen   # форма бронирования поездки
+    │   ├── _CreateRequestScreen # форма создания заявки
+    │   ├── _EditRequestScreen   # редактирование заявки
+    │   └── _OffersScreen        # список офферов от водителей
+    ├── history_screen.dart      # история поездок
+    ├── profile_screen.dart      # профиль пользователя
+    └── info_screens.dart        # Поддержка, Настройки, О приложении
 ```
 
 ## Как использовать этот файл
