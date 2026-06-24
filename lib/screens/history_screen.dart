@@ -12,8 +12,7 @@ class HistoryScreen extends StatefulWidget {
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _HistoryScreenState extends State<HistoryScreen> {
   List<dynamic> _bookings = [];
   List<dynamic> _requests = [];
   bool _loading = true;
@@ -24,14 +23,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _load();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _load() async {
@@ -47,9 +39,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
       final bRes = await dio.get('$_apiBase/bookings/my', options: Options(headers: headers));
       final b = bRes.data;
       if (mounted) setState(() => _bookings = b is List ? b : (b['data'] ?? []));
-    } on DioException catch (e) {
-      if (mounted) setState(() => _error = 'Брони: ${e.response?.statusCode ?? e.message}');
-    }
+    } on DioException catch (_) {}
     try {
       final rRes = await dio.get('$_apiBase/trip-requests/my', options: Options(headers: headers));
       final r = rRes.data;
@@ -60,22 +50,24 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    final doneBookings = _bookings.where((b) {
+      final s = b['status'] ?? '';
+      return s == 'completed' || s == 'confirmed' || s == 'cancelled';
+    }).toList();
+
+    final doneRequests = _requests.where((r) {
+      final s = r['status'] ?? '';
+      return s == 'accepted' || s == 'cancelled';
+    }).toList();
+
+    final isEmpty = doneBookings.isEmpty && doneRequests.isEmpty;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
-        title: const Text('История', style: TextStyle(fontWeight: FontWeight.bold)),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
-          tabs: const [
-            Tab(icon: Icon(Icons.confirmation_num_outlined), text: 'Брони'),
-            Tab(icon: Icon(Icons.people_alt_outlined), text: 'Заявки'),
-          ],
-        ),
+        title: const Text('История поездок', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -87,110 +79,150 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                   const SizedBox(height: 12),
                   ElevatedButton(onPressed: _load, child: const Text('Повторить')),
                 ]))
-              : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildBookings(),
-                _buildRequests(),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildBookings() {
-    if (_bookings.isEmpty) {
-      return _empty(Icons.confirmation_num_outlined, 'Нет бронирований');
-    }
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _bookings.length,
-        itemBuilder: (_, i) => _BookingCard(booking: _bookings[i], onCancel: _load),
-      ),
-    );
-  }
-
-  Widget _buildRequests() {
-    if (_requests.isEmpty) {
-      return _empty(Icons.people_alt_outlined, 'Нет заявок');
-    }
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _requests.length,
-        itemBuilder: (_, i) => _RequestHistoryCard(request: _requests[i]),
-      ),
-    );
-  }
-
-  Widget _empty(IconData icon, String text) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 64, color: Colors.grey[300]),
-          const SizedBox(height: 12),
-          Text(text, style: TextStyle(color: Colors.grey[500])),
-        ],
-      ),
+              : isEmpty
+                  ? Center(
+                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Icon(Icons.history, size: 72, color: Colors.grey[300]),
+                        const SizedBox(height: 12),
+                        Text('Нет завершённых поездок', style: TextStyle(color: Colors.grey[500])),
+                      ]),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          for (final b in doneBookings)
+                            _BookingCard(booking: b, token: _token),
+                          for (final r in doneRequests)
+                            _RequestCard(request: r),
+                        ],
+                      ),
+                    ),
     );
   }
 }
 
-class _BookingCard extends StatelessWidget {
+// ─── КАРТОЧКА БРОНИ ──────────────────────────────────────────────────────────
+
+class _BookingCard extends StatefulWidget {
   final Map<String, dynamic> booking;
-  final VoidCallback onCancel;
-  const _BookingCard({required this.booking, required this.onCancel});
+  final String? token;
+  const _BookingCard({required this.booking, required this.token});
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'confirmed': return Colors.green;
-      case 'cancelled': return Colors.red;
-      default: return Colors.orange;
-    }
-  }
+  @override
+  State<_BookingCard> createState() => _BookingCardState();
+}
 
-  String _statusText(String status) {
-    switch (status) {
-      case 'confirmed': return 'Подтверждено';
-      case 'cancelled': return 'Отменено';
-      default: return status;
-    }
-  }
+class _BookingCardState extends State<_BookingCard> {
+  bool _rated = false;
 
-  void _cancel(BuildContext context) async {
-    final confirm = await showDialog<bool>(
+  Color _statusColor(String s) => switch (s) {
+    'confirmed' => Colors.green,
+    'completed' => Colors.blue,
+    'cancelled' => Colors.red,
+    _ => Colors.orange,
+  };
+
+  String _statusText(String s) => switch (s) {
+    'confirmed' => 'Подтверждено',
+    'completed' => 'Завершено',
+    'cancelled' => 'Отменено',
+    _ => s,
+  };
+
+  Future<void> _openRating() async {
+    final tripId   = widget.booking['trip_id']   as int?;
+    final driverId = widget.booking['driver_id'] as int?;
+    if (tripId == null || driverId == null) return;
+
+    int selectedStars = 5;
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Отменить бронь?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Нет')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Да', style: TextStyle(color: Colors.red)),
-          ),
-        ],
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Оценить водителя', textAlign: TextAlign.center),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('Как прошла поездка?',
+                style: TextStyle(color: Colors.grey), textAlign: TextAlign.center),
+            const SizedBox(height: 20),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(5, (i) {
+              final star = i + 1;
+              return GestureDetector(
+                onTap: () => setSt(() => selectedStars = star),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Icon(
+                    star <= selectedStars ? Icons.star_rounded : Icons.star_outline_rounded,
+                    color: Colors.amber,
+                    size: 40,
+                  ),
+                ),
+              );
+            })),
+            const SizedBox(height: 12),
+            Text(
+              ['', 'Ужасно', 'Плохо', 'Нормально', 'Хорошо', 'Отлично!'][selectedStars],
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.primary,
+                foregroundColor: Colors.white,
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Отправить'),
+            ),
+          ],
+        ),
       ),
     );
-    if (confirm != true) return;
 
-    final token = html.window.localStorage['token'];
-    if (token == null) return;
+    if (confirmed != true) return;
+
     try {
-      await Dio().delete(
-        '$_apiBase/bookings/${booking['id']}',
-        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      await Dio().post(
+        '$_apiBase/ratings/',
+        data: {'trip_id': tripId, 'to_user_id': driverId, 'score': selectedStars},
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer ${widget.token}',
+            'Content-Type': 'application/json',
+          },
+        ),
       );
-      onCancel();
-    } catch (_) {}
+      setState(() => _rated = true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Спасибо за оценку!'), backgroundColor: Colors.green),
+        );
+      }
+    } on DioException catch (e) {
+      if (mounted) {
+        final msg = e.response?.data?['detail'] ?? 'Ошибка';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: Colors.red),
+        );
+        if (msg.contains('уже оценили')) setState(() => _rated = true);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final status = booking['status'] ?? 'pending';
-    final isCancelled = status == 'cancelled';
+    final b      = widget.booking;
+    final status = b['status'] ?? '';
+    final tripStatus = b['trip_status'] ?? '';
+    final dt     = b['departure_time'] != null ? DateTime.tryParse(b['departure_time']) : null;
+    final canRate = tripStatus == 'completed' && !_rated;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
@@ -200,169 +232,185 @@ class _BookingCard extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.confirmation_num_outlined,
-                    color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                Text('Бронь #${booking['id']}',
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _statusColor(status).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(_statusText(status),
-                      style: TextStyle(color: _statusColor(status), fontSize: 12)),
-                ),
-              ],
-            ),
-            if (booking['route_name'] != null) ...[
-              const SizedBox(height: 6),
-              Row(children: [
-                Icon(Icons.route_outlined, size: 16, color: Colors.grey[500]),
-                const SizedBox(width: 4),
-                Text(booking['route_name'], style: const TextStyle(fontWeight: FontWeight.w500)),
-              ]),
-            ],
-            if (booking['departure_time'] != null) ...[
-              const SizedBox(height: 4),
-              Row(children: [
-                Icon(Icons.schedule_outlined, size: 16, color: Colors.grey[500]),
-                const SizedBox(width: 4),
-                Builder(builder: (_) {
-                  final dt = DateTime.tryParse(booking['departure_time']);
-                  if (dt == null) return const SizedBox();
-                  return Text(
-                    '${dt.day.toString().padLeft(2,'0')}.${dt.month.toString().padLeft(2,'0')}.${dt.year}  ${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}',
-                    style: TextStyle(color: Colors.grey[600]),
-                  );
-                }),
-              ]),
-            ],
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Icon(Icons.event_seat_outlined, size: 16, color: Colors.grey[500]),
-                const SizedBox(width: 4),
-                Text('${booking['seats_count']} мест',
-                    style: TextStyle(color: Colors.grey[600])),
-                const SizedBox(width: 16),
-                Icon(Icons.payments_outlined, size: 16, color: Colors.grey[500]),
-                const SizedBox(width: 4),
-                Text('${(booking['total_price'] as num).toStringAsFixed(0)} ₸',
-                    style: TextStyle(color: Colors.grey[600])),
-              ],
-            ),
-            if (!isCancelled) ...[
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => _cancel(context),
-                  style: TextButton.styleFrom(foregroundColor: Colors.red),
-                  child: const Text('Отменить'),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: Text(b['route_name'] ?? '—',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+            const SizedBox(width: 8),
+            _Badge(label: _statusText(status), color: _statusColor(status)),
+          ]),
+          if (dt != null) ...[
+            const SizedBox(height: 6),
+            _InfoRow(icon: Icons.schedule_outlined,
+                text: '${dt.day.toString().padLeft(2,'0')}.${dt.month.toString().padLeft(2,'0')}.${dt.year}  '
+                    '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}'),
+          ],
+          const SizedBox(height: 4),
+          Row(children: [
+            _InfoRow(icon: Icons.event_seat_outlined, text: '${b['seats_count']} мест'),
+            const SizedBox(width: 16),
+            _InfoRow(icon: Icons.payments_outlined,
+                text: '${(b['total_price'] as num).toStringAsFixed(0)} ₸'),
+          ]),
+          if (canRate) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _openRating,
+                icon: const Icon(Icons.star_outline_rounded, size: 18),
+                label: const Text('Оценить водителя'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.amber[700],
+                  side: BorderSide(color: Colors.amber[300]!),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  minimumSize: Size.zero,
                 ),
               ),
-            ],
+            ),
           ],
-        ),
+          if (_rated)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.check_circle_outline, size: 16, color: Colors.green[600]),
+                const SizedBox(width: 6),
+                Text('Вы оценили эту поездку',
+                    style: TextStyle(color: Colors.green[700], fontSize: 13)),
+              ]),
+            ),
+        ]),
       ),
     );
   }
 }
 
-class _RequestHistoryCard extends StatelessWidget {
+// ─── КАРТОЧКА ЗАЯВКИ ─────────────────────────────────────────────────────────
+
+class _RequestCard extends StatelessWidget {
   final Map<String, dynamic> request;
-  const _RequestHistoryCard({required this.request});
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'open': return Colors.blue;
-      case 'accepted': return Colors.green;
-      case 'cancelled': return Colors.red;
-      default: return Colors.orange;
-    }
-  }
-
-  String _statusText(String status) {
-    switch (status) {
-      case 'open': return 'Открыта';
-      case 'accepted': return 'Принята';
-      case 'cancelled': return 'Отменена';
-      default: return status;
-    }
-  }
+  const _RequestCard({required this.request});
 
   @override
   Widget build(BuildContext context) {
-    final status = request['status'] ?? 'open';
-    final date = request['departure_date'] != null
-        ? DateTime.tryParse(request['departure_date'])
-        : null;
+    final status = request['status'] ?? '';
+    final isAccepted = status == 'accepted';
+    final date = request['departure_date'] != null ? DateTime.tryParse(request['departure_date']) : null;
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey[200]!),
+        side: BorderSide(
+          color: isAccepted ? primary.withOpacity(0.35) : Colors.grey[200]!,
+          width: isAccepted ? 1.5 : 1,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.people_alt_outlined,
-                    color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                Text('Заявка #${request['id']}',
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _statusColor(status).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(_statusText(status),
-                      style: TextStyle(color: _statusColor(status), fontSize: 12)),
-                ),
-              ],
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Маршрут + статус
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: Text(request['route_name'] ?? '—',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ),
-            if (request['route_name'] != null) ...[
-              const SizedBox(height: 6),
-              Row(children: [
-                Icon(Icons.route_outlined, size: 16, color: Colors.grey[500]),
-                const SizedBox(width: 4),
-                Text(request['route_name'], style: const TextStyle(fontWeight: FontWeight.w500)),
-              ]),
-            ],
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Icon(Icons.event_seat_outlined, size: 16, color: Colors.grey[500]),
-                const SizedBox(width: 4),
-                Text('${request['seats_needed']} мест',
-                    style: TextStyle(color: Colors.grey[600])),
-                if (date != null) ...[
-                  const SizedBox(width: 16),
-                  Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey[500]),
-                  const SizedBox(width: 4),
-                  Text('${date.day.toString().padLeft(2,'0')}.${date.month.toString().padLeft(2,'0')}.${date.year}',
-                      style: TextStyle(color: Colors.grey[600])),
-                ],
-              ],
+            const SizedBox(width: 8),
+            _Badge(
+              label: isAccepted ? 'Выполнена' : 'Отменена',
+              color: isAccepted ? primary : Colors.red,
+            ),
+          ]),
+
+          if (date != null) ...[
+            const SizedBox(height: 6),
+            _InfoRow(
+              icon: Icons.schedule_outlined,
+              text: '${date.day.toString().padLeft(2,'0')}.${date.month.toString().padLeft(2,'0')}.${date.year}  '
+                  '${date.hour.toString().padLeft(2,'0')}:${date.minute.toString().padLeft(2,'0')}',
             ),
           ],
-        ),
+          const SizedBox(height: 4),
+          _InfoRow(icon: Icons.event_seat_outlined, text: '${request['seats_needed']} мест'),
+
+          // Блок водителя
+          if (isAccepted && (request['driver_name'] != null || request['driver_phone'] != null)) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: primary.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: primary.withOpacity(0.15)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(Icons.directions_car_outlined, size: 13, color: primary),
+                  const SizedBox(width: 5),
+                  Text('ВОДИТЕЛЬ',
+                      style: TextStyle(color: primary, fontSize: 11,
+                          fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+                ]),
+                const SizedBox(height: 8),
+                if (request['driver_name'] != null)
+                  Row(children: [
+                    Icon(Icons.person_outline, size: 16, color: Colors.grey[600]),
+                    const SizedBox(width: 8),
+                    Text(request['driver_name'],
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                  ]),
+                if (request['driver_phone'] != null) ...[
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Icon(Icons.phone_outlined, size: 16, color: Colors.grey[600]),
+                    const SizedBox(width: 8),
+                    Text(request['driver_phone'],
+                        style: TextStyle(fontSize: 15, color: primary, fontWeight: FontWeight.w500)),
+                  ]),
+                ],
+              ]),
+            ),
+          ],
+        ]),
       ),
     );
+  }
+}
+
+// ─── ВСПОМОГАТЕЛЬНЫЕ ВИДЖЕТЫ ─────────────────────────────────────────────────
+
+class _Badge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _Badge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _InfoRow({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 15, color: Colors.grey[500]),
+      const SizedBox(width: 4),
+      Text(text, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+    ]);
   }
 }

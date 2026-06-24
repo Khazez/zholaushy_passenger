@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 
+import 'app_state.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
@@ -12,8 +13,31 @@ void main() {
   runApp(const ZholaushyApp());
 }
 
-class ZholaushyApp extends StatelessWidget {
+class ZholaushyApp extends StatefulWidget {
   const ZholaushyApp({super.key});
+
+  @override
+  State<ZholaushyApp> createState() => _ZholaushyAppState();
+}
+
+class _ZholaushyAppState extends State<ZholaushyApp> {
+  void _rebuild() => setState(() {});
+
+  @override
+  void initState() {
+    super.initState();
+    AppState.themeNotifier.value = AppState.parseTheme(html.window.localStorage['theme'] ?? 'system');
+    AppState.langNotifier.value  = html.window.localStorage['lang'] ?? 'ru';
+    AppState.themeNotifier.addListener(_rebuild);
+    AppState.langNotifier.addListener(_rebuild);
+  }
+
+  @override
+  void dispose() {
+    AppState.themeNotifier.removeListener(_rebuild);
+    AppState.langNotifier.removeListener(_rebuild);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,43 +46,55 @@ class ZholaushyApp extends StatelessWidget {
     final router = GoRouter(
       initialLocation: token != null ? '/home' : '/login',
       routes: [
-        GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+        GoRoute(path: '/login',    builder: (_, __) => const LoginScreen()),
         GoRoute(
           path: '/register',
           builder: (_, state) {
             final extra = state.extra as Map<String, String>?;
             return RegisterScreen(
               phone: extra?['phone'] ?? '',
-              code: extra?['code'] ?? '',
+              code:  extra?['code']  ?? '',
             );
           },
         ),
-        GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
+        GoRoute(path: '/home',    builder: (_, __) => const HomeScreen()),
         GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
       ],
+    );
+
+    const seed = Color(0xFF1A73E8);
+
+    final inputTheme = InputDecorationTheme(
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    );
+    final buttonTheme = ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size(double.infinity, 52),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      ),
     );
 
     return MaterialApp.router(
       title: 'Жолаушы',
       debugShowCheckedModeBanner: false,
+      themeMode: AppState.themeNotifier.value,
+
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1A73E8),
-          brightness: Brightness.light,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.light),
         useMaterial3: true,
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 52),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-        ),
+        inputDecorationTheme: inputTheme,
+        elevatedButtonTheme: buttonTheme,
       ),
+
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark),
+        useMaterial3: true,
+        inputDecorationTheme: inputTheme,
+        elevatedButtonTheme: buttonTheme,
+      ),
+
       routerConfig: router,
     );
   }
