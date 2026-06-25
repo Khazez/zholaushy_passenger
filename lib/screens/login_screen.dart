@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
+import '../fcm_service.dart';
 
 const String _apiBase = 'http://localhost:8000/api/v1';
 
@@ -57,7 +58,9 @@ class _LoginScreenState extends State<LoginScreen> {
         '$_apiBase/auth/verify-otp',
         queryParameters: {'phone': _fullPhone, 'code': code},
       );
-      html.window.localStorage['token'] = res.data['access_token'];
+      final token = res.data['access_token'] as String;
+      html.window.localStorage['token'] = token;
+      registerFcmToken(token);
       if (mounted) context.go('/home');
     } on DioException catch (e) {
       final detail = e.response?.data?['detail'];

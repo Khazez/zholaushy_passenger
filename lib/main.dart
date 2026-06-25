@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_core/firebase_core.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 
@@ -9,7 +10,18 @@ import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/history_screen.dart';
 
-void main() {
+const _firebaseOptions = FirebaseOptions(
+  apiKey: 'AIzaSyC5k6vD8moo1cF8ewdF3H-RLx8tslz9a5c',
+  appId: '1:1054390633030:web:76ec102fd5b22f0d2a0047',
+  messagingSenderId: '1054390633030',
+  projectId: 'taxi-b163c',
+  authDomain: 'taxi-b163c.firebaseapp.com',
+  storageBucket: 'taxi-b163c.firebasestorage.app',
+);
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: _firebaseOptions);
   runApp(const ZholaushyApp());
 }
 

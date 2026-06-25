@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
+import '../fcm_service.dart';
 
 const String _regApiBase = 'http://localhost:8000/api/v1';
 
@@ -37,7 +38,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'name': name,
         },
       );
-      html.window.localStorage['token'] = res.data['access_token'];
+      final token = res.data['access_token'] as String;
+      html.window.localStorage['token'] = token;
+      registerFcmToken(token);
       if (mounted) context.go('/home');
     } on DioException catch (e) {
       setState(() {
