@@ -302,6 +302,7 @@ class _TripsTabState extends State<_TripsTab> {
                               request: r,
                               routeName: r['route_name'] ?? _routeName(r['route_id']),
                               onRefresh: _load,
+                              getToken: widget.getToken,
                             ),
 
                           // Ожидающие заявки — маленькие
@@ -330,16 +331,127 @@ class _TripsTabState extends State<_TripsTab> {
 }
 
 // Большая карточка — заявку взял водитель
-class _AcceptedRequestCard extends StatelessWidget {
+class _AcceptedRequestCard extends StatefulWidget {
   final Map<String, dynamic> request;
   final String routeName;
   final VoidCallback onRefresh;
-  const _AcceptedRequestCard({required this.request, required this.routeName, required this.onRefresh});
+  final String? Function() getToken;
+  const _AcceptedRequestCard({
+    required this.request,
+    required this.routeName,
+    required this.onRefresh,
+    required this.getToken,
+  });
+
+  @override
+  State<_AcceptedRequestCard> createState() => _AcceptedRequestCardState();
+}
+
+class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
+  bool _rated = false;
+
+  Future<void> _showRatingDialog() async {
+    int selectedScore = 0;
+    final driverName = widget.request['driver_name'] ?? 'водителя';
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Оцените $driverName'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('Как прошла поездка?', style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (i) {
+                final star = i + 1;
+                return GestureDetector(
+                  onTap: () => setDialog(() => selectedScore = star),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Icon(
+                      star <= selectedScore ? Icons.star_rounded : Icons.star_outline_rounded,
+                      color: Colors.amber,
+                      size: 44,
+                    ),
+                  ),
+                );
+              }),
+            ),
+            if (selectedScore > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                ['', 'Очень плохо', 'Плохо', 'Нормально', 'Хорошо', 'Отлично!'][selectedScore],
+                style: TextStyle(color: Colors.amber[700], fontWeight: FontWeight.w600),
+              ),
+            ],
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+            ElevatedButton(
+              onPressed: selectedScore == 0
+                  ? null
+                  : () async {
+                      final token = widget.getToken();
+                      try {
+                        await Dio().post(
+                          '$apiBase/ratings/',
+                          data: {
+                            'trip_id': widget.request['trip_id'],
+                            'to_user_id': widget.request['driver_user_id'],
+                            'score': selectedScore,
+                          },
+                          options: Options(
+                            headers: {'Authorization': 'Bearer $token'},
+                            contentType: 'application/json',
+                          ),
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        setState(() => _rated = true);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Спасибо за оценку!'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } on DioException catch (e) {
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (e.response?.statusCode == 400) {
+                          setState(() => _rated = true);
+                        } else if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(e.response?.data?['detail'] ?? 'Ошибка'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber[700],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Отправить'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final request = widget.request;
     final date = request['departure_date'] != null ? DateTime.tryParse(request['departure_date']) : null;
     final primary = Theme.of(context).colorScheme.primary;
+    final canRate = !_rated &&
+        request['trip_status'] == 'completed' &&
+        request['trip_id'] != null &&
+        request['driver_user_id'] != null;
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
@@ -360,7 +472,7 @@ class _AcceptedRequestCard extends StatelessWidget {
               ),
             ]),
             const SizedBox(height: 12),
-            Text(routeName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+            Text(widget.routeName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
             if (date != null) ...[
               const SizedBox(height: 6),
               Row(children: [
@@ -435,6 +547,24 @@ class _AcceptedRequestCard extends StatelessWidget {
                   ]),
                 ),
               ],
+            ],
+            if (canRate) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _showRatingDialog,
+                  icon: const Icon(Icons.star_rounded, size: 18),
+                  label: const Text('Оценить поездку'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber[700],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    minimumSize: Size.zero,
+                  ),
+                ),
+              ),
             ],
           ],
         ),
