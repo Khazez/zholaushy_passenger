@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 
+import 'fcm_service.dart';
 import 'app_state.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -22,6 +23,8 @@ const _firebaseOptions = FirebaseOptions(
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: _firebaseOptions);
+  final savedToken = html.window.localStorage['token'];
+  if (savedToken != null) registerFcmToken(savedToken);
   runApp(const ZholaushyApp());
 }
 

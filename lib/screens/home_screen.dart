@@ -389,11 +389,51 @@ class _AcceptedRequestCard extends StatelessWidget {
                 ]),
               if (request['driver_phone'] != null) ...[
                 const SizedBox(height: 4),
-                Row(children: [
-                  Icon(Icons.phone_outlined, size: 16, color: primary),
-                  const SizedBox(width: 6),
-                  Text(request['driver_phone'], style: TextStyle(color: primary, fontWeight: FontWeight.w500)),
-                ]),
+                GestureDetector(
+                  onTap: () => html.window.open('tel:${request['driver_phone']}', '_blank'),
+                  child: Row(children: [
+                    Icon(Icons.phone_outlined, size: 16, color: primary),
+                    const SizedBox(width: 6),
+                    Text(request['driver_phone'],
+                        style: TextStyle(color: primary, fontWeight: FontWeight.w500,
+                            decoration: TextDecoration.underline)),
+                  ]),
+                ),
+              ],
+              if (request['car_brand'] != null || request['car_number'] != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(children: [
+                    Icon(Icons.directions_car_outlined, size: 15, color: Colors.grey[600]),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(
+                      [
+                        if (request['car_brand'] != null) request['car_brand'],
+                        if (request['car_model'] != null) request['car_model'],
+                        if (request['car_year'] != null) '${request['car_year']}',
+                        if (request['car_color'] != null) request['car_color'],
+                      ].join(' '),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                    )),
+                    if (request['car_number'] != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(color: Colors.grey[300]!),
+                        ),
+                        child: Text(request['car_number'],
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                      ),
+                  ]),
+                ),
               ],
             ],
           ],
@@ -576,6 +616,7 @@ class _OffersScreenState extends State<_OffersScreen> {
   List<dynamic> _offers = [];
   bool _loading = true;
   int? _accepting;
+  int? _declining;
 
   String? _getToken() => html.window.localStorage['token'];
 
@@ -725,6 +766,26 @@ class _OffersScreenState extends State<_OffersScreen> {
     }
   }
 
+  Future<void> _decline(int offerId) async {
+    setState(() => _declining = offerId);
+    final token = _getToken();
+    try {
+      await Dio().delete(
+        '$apiBase/trip-requests/${widget.request['id']}/offers/$offerId',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      ).timeout(const Duration(seconds: 8));
+      setState(() => _offers.removeWhere((o) => o['id'] == offerId));
+    } on DioException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.response?.data?['detail'] ?? 'Ошибка'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _declining = null);
+    }
+  }
+
   void _openEdit() {
     Navigator.push(
       context,
@@ -808,7 +869,9 @@ class _OffersScreenState extends State<_OffersScreen> {
                           offer: _offers[i],
                           seatsNeeded: widget.request['seats_needed'] ?? 1,
                           isAccepting: _accepting == _offers[i]['id'],
+                          isDeclining: _declining == _offers[i]['id'],
                           onAccept: () => _accept(_offers[i]['id']),
+                          onDecline: () => _decline(_offers[i]['id']),
                           primary: primary,
                         ),
                       ),
@@ -849,14 +912,18 @@ class _OfferCard extends StatelessWidget {
   final Map<String, dynamic> offer;
   final int seatsNeeded;
   final bool isAccepting;
+  final bool isDeclining;
   final VoidCallback onAccept;
+  final VoidCallback onDecline;
   final Color primary;
 
   const _OfferCard({
     required this.offer,
     required this.seatsNeeded,
     required this.isAccepting,
+    required this.isDeclining,
     required this.onAccept,
+    required this.onDecline,
     required this.primary,
   });
 
@@ -896,8 +963,15 @@ class _OfferCard extends StatelessWidget {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(offer['driver_name'] ?? '—',
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-            Text(offer['driver_phone'] ?? '—',
-                style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+            GestureDetector(
+              onTap: () => html.window.open('tel:${offer['driver_phone']}', '_blank'),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.phone_outlined, size: 13, color: primary),
+                const SizedBox(width: 3),
+                Text(offer['driver_phone'] ?? '—',
+                    style: TextStyle(color: primary, fontSize: 13, fontWeight: FontWeight.w500)),
+              ]),
+            ),
           ])),
           // Цена за всё
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -908,6 +982,43 @@ class _OfferCard extends StatelessWidget {
                   style: TextStyle(color: Colors.grey[500], fontSize: 11)),
           ]),
         ]),
+
+        // Машина
+        if (offer['car_brand'] != null || offer['car_number'] != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
+            ),
+            child: Row(children: [
+              Icon(Icons.directions_car_outlined, size: 16, color: Colors.grey[600]),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                [
+                  if (offer['car_brand'] != null) offer['car_brand'],
+                  if (offer['car_model'] != null) offer['car_model'],
+                  if (offer['car_year'] != null) '${offer['car_year']}',
+                  if (offer['car_color'] != null) offer['car_color'],
+                ].join(' '),
+                style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+              )),
+              if (offer['car_number'] != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Text(offer['car_number'],
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                ),
+            ]),
+          ),
+        ],
 
         if (depTime != null) ...[
           const SizedBox(height: 12),
@@ -931,26 +1042,41 @@ class _OfferCard extends StatelessWidget {
 
         const SizedBox(height: 14),
 
-        // Кнопка принять
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: isAccepting ? null : onAccept,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              minimumSize: Size.zero,
+        // Кнопки принять / отклонить
+        Row(children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: (isAccepting || isDeclining) ? null : onDecline,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red[600],
+                side: BorderSide(color: Colors.red[300]!),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                minimumSize: Size.zero,
+              ),
+              child: isDeclining
+                  ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red[400]))
+                  : const Text('Отклонить', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
-            child: isAccepting
-                ? const SizedBox(
-                    width: 20, height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : const Text('Принять водителя', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-        ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton(
+              onPressed: (isAccepting || isDeclining) ? null : onAccept,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                minimumSize: Size.zero,
+              ),
+              child: isAccepting
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Принять водителя', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ]),
       ]),
     );
   }
