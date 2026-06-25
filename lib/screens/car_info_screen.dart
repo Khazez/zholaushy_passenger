@@ -3,8 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
-
-const String _apiBase = 'http://localhost:8000/api/v1';
+import '../config.dart';
 
 class CarInfoScreen extends StatefulWidget {
   final bool isUpdate;
@@ -45,7 +44,7 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
     if (token == null) return;
     try {
       final res = await Dio().get(
-        '$_apiBase/drivers/profile',
+        '$kApiBase/drivers/profile',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       final d = res.data['data'];
@@ -86,12 +85,12 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
     try {
       if (widget.isUpdate) {
         await Dio().patch(
-          '$_apiBase/drivers/profile/vehicle?$params',
+          '$kApiBase/drivers/profile/vehicle?$params',
           options: Options(headers: {'Authorization': 'Bearer $token'}),
         );
       } else {
         await Dio().post(
-          '$_apiBase/drivers/profile?$params',
+          '$kApiBase/drivers/profile?$params',
           options: Options(headers: {'Authorization': 'Bearer $token'}),
         );
       }

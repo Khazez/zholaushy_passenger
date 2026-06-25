@@ -1,7 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dio/dio.dart';
-
-const String _apiBase = 'http://localhost:8000/api/v1';
+import 'config.dart';
 const String _vapidKey =
     'BPm0kWEEazAULngzb2ysuswI0QVl_H2Y3DTJ-dOSRL0tzp_EV1y87vn5UReefU5ideVvYd6IiMQ9BT3GDkjX0Wk';
 
@@ -14,7 +13,7 @@ Future<void> registerFcmToken(String authToken) async {
     print('[FCM] token: $fcmToken');
     if (fcmToken != null) {
       final resp = await Dio().post(
-        '$_apiBase/auth/fcm-token',
+        '$kApiBase/auth/fcm-token',
         queryParameters: {'token': fcmToken},
         options: Options(headers: {'Authorization': 'Bearer $authToken'}),
       );

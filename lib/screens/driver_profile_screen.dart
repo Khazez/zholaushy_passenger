@@ -3,8 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
-
-const String _apiBase = 'http://localhost:8000/api/v1';
+import '../config.dart';
 
 class DriverProfileScreen extends StatefulWidget {
   const DriverProfileScreen({super.key});
@@ -55,7 +54,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     if (token == null) return;
     try {
       final res = await Dio().get(
-        '$_apiBase/auth/me',
+        '$kApiBase/auth/me',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       final d = res.data;
@@ -68,7 +67,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
       try {
         final carRes = await Dio().get(
-          '$_apiBase/drivers/profile',
+          '$kApiBase/drivers/profile',
           options: Options(headers: {'Authorization': 'Bearer $token'}),
         );
         final car = carRes.data['data'];
@@ -85,7 +84,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
       try {
         final ratingsRes = await Dio().get(
-          '$_apiBase/ratings/received',
+          '$kApiBase/ratings/received',
           options: Options(headers: {'Authorization': 'Bearer $token'}),
         );
         final list = ratingsRes.data is List ? ratingsRes.data as List : [];
@@ -124,7 +123,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     try {
       final token = _getToken();
       await Dio().patch(
-        '$_apiBase/auth/me',
+        '$kApiBase/auth/me',
         data: {'name': newName},
         options: Options(headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'}),
       );

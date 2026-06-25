@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
-
-const String _apiBase = 'http://localhost:8000/api/v1';
+import '../config.dart';
 
 Widget _phoneButtons(String phone, Color primary) {
   return SizedBox(
@@ -52,7 +51,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     // Попутки (bookings) — завершённые
     try {
-      final res = await dio.get('$_apiBase/bookings/my', options: Options(headers: headers));
+      final res = await dio.get('$kApiBase/bookings/my', options: Options(headers: headers));
       final list = res.data is List ? res.data as List : [];
       for (final b in list) {
         if (b['trip_status'] == 'completed') {
@@ -71,7 +70,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     // Заявки InDriver — завершённые (status=accepted + trip_status=completed)
     try {
-      final res = await dio.get('$_apiBase/trip-requests/my', options: Options(headers: headers));
+      final res = await dio.get('$kApiBase/trip-requests/my', options: Options(headers: headers));
       final list = res.data is List ? res.data as List : (res.data['data'] ?? []);
       for (final r in list) {
         if (r['status'] == 'accepted' && r['trip_status'] == 'completed') {

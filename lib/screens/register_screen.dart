@@ -1,16 +1,17 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import '../fcm_service.dart';
-
-const String _regApiBase = 'http://localhost:8000/api/v1';
+import '../config.dart';
+import '../theme.dart';
 
 class RegisterScreen extends StatefulWidget {
   final String phone;
   final String code;
-  final String mode; // 'passenger' | 'driver'
+  final String mode;
   const RegisterScreen({
     super.key,
     required this.phone,
@@ -22,27 +23,46 @@ class RegisterScreen extends StatefulWidget {
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProviderStateMixin {
   final _nameCtrl = TextEditingController();
-  bool _loading = false;
+  bool    _loading = false;
   String? _error;
+
+  late final AnimationController _cardCtrl;
+  late final Animation<Offset>   _cardSlide;
+  late final Animation<double>   _cardFade;
+
+  bool get _isDriver => widget.mode == 'driver';
+
+  @override
+  void initState() {
+    super.initState();
+    _cardCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _cardSlide = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _cardCtrl, curve: Curves.easeOutCubic));
+    _cardFade = CurvedAnimation(parent: _cardCtrl, curve: Curves.easeOut);
+    _cardCtrl.forward();
+  }
 
   @override
   void dispose() {
+    _cardCtrl.dispose();
     _nameCtrl.dispose();
     super.dispose();
   }
 
+  // ── Логика (не меняется) ──────────────────────────────────────────────────
+
   Future<void> _register() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      setState(() => _error = 'Введите имя');
+      setState(() => _error = 'Введите ваше имя');
       return;
     }
     setState(() { _loading = true; _error = null; });
     try {
       final res = await Dio().post(
-        '$_regApiBase/auth/verify-otp',
+        '$kApiBase/auth/verify-otp',
         queryParameters: {
           'phone': widget.phone,
           'code':  widget.code,
@@ -55,13 +75,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       html.window.localStorage['mode']  = widget.mode;
       html.window.localStorage['name']  = name;
       registerFcmToken(token);
-
-      if (widget.mode == 'driver') {
-        // Новый водитель — сразу на ввод данных машины
-        if (mounted) context.go('/car-info');
-      } else {
-        if (mounted) context.go('/home');
-      }
+      if (mounted) context.go(_isDriver ? '/car-info' : '/home');
     } on DioException catch (e) {
       setState(() {
         _error = e.response?.data?['detail'] ?? 'Ошибка регистрации';
@@ -70,102 +84,340 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  // ── UI ───────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final isDriver = widget.mode == 'driver';
+    final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.grey[50],
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/login'),
-        ),
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+      body: Stack(
+        children: [
 
-                Center(child: Column(children: [
-                  Container(
-                    width: 64, height: 64,
-                    decoration: BoxDecoration(color: primary, borderRadius: BorderRadius.circular(18)),
-                    child: Icon(
-                      isDriver ? Icons.directions_car_outlined : Icons.person_add_outlined,
-                      color: Colors.white, size: 36,
+          // ── Тёмный верх ──
+          Positioned(
+            top: 0, left: 0, right: 0,
+            height: size.height * 0.42,
+            child: DecoratedBox(
+              decoration: const BoxDecoration(gradient: kGradientVertical),
+              child: Stack(children: [
+                CustomPaint(
+                  painter: _RegOrnamentPainter(),
+                  size: Size(size.width, size.height * 0.42),
+                ),
+                // Кнопка назад
+                Positioned(
+                  top: 12, left: 8,
+                  child: SafeArea(
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                      onPressed: () => context.go('/login'),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  const Text('Создать аккаунт',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text('Номер ${widget.phone} подтверждён',
-                      style: TextStyle(color: Colors.grey[600])),
-                  if (isDriver) ...[
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
+                ),
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 16),
+
+                      // Иконка с галочкой подтверждения
+                      Stack(
+                        children: [
+                          Container(
+                            width: 72, height: 72,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withOpacity(0.15),
+                              border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                            ),
+                            child: Icon(
+                              _isDriver ? Icons.directions_car_rounded : Icons.person_add_rounded,
+                              color: Colors.white, size: 36,
+                            ),
+                          ),
+                          Positioned(
+                            right: 0, bottom: 0,
+                            child: Container(
+                              width: 22, height: 22,
+                              decoration: BoxDecoration(
+                                color: kTeal,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: kNavy, width: 2),
+                              ),
+                              child: const Icon(Icons.check_rounded, color: Colors.white, size: 13),
+                            ),
+                          ),
+                        ],
                       ),
-                      child: Text('Режим: Водитель',
-                          style: TextStyle(color: primary, fontSize: 12, fontWeight: FontWeight.w600)),
-                    ),
-                  ],
-                ])),
 
-                const SizedBox(height: 32),
+                      const SizedBox(height: 14),
 
-                TextField(
-                  controller: _nameCtrl,
-                  textCapitalization: TextCapitalization.words,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Имя и фамилия',
-                    prefixIcon: Icon(Icons.person_outlined),
+                      ShaderMask(
+                        shaderCallback: (b) => const LinearGradient(
+                          colors: [Colors.white, kTeal],
+                        ).createShader(b),
+                        child: const Text(
+                          'ДОБРО ПОЖАЛОВАТЬ',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 3,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 6),
+
+                      // Телефон подтверждён
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withOpacity(0.2)),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.phone_rounded, color: kTeal, size: 14),
+                          const SizedBox(width: 6),
+                          Text(
+                            widget.phone,
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.verified_rounded, color: kTeal, size: 14),
+                        ]),
+                      ),
+                    ],
                   ),
-                  onSubmitted: (_) => _register(),
                 ),
-                const SizedBox(height: 16),
-
-                if (_error != null)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.red[50],
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.red[200]!),
-                    ),
-                    child: Row(children: [
-                      Icon(Icons.error_outline, color: Colors.red[600], size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(_error!,
-                          style: TextStyle(color: Colors.red[700], fontSize: 13))),
-                    ]),
-                  ),
-
-                ElevatedButton(
-                  onPressed: _loading ? null : _register,
-                  child: _loading
-                      ? const SizedBox(height: 20, width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Зарегистрироваться'),
-                ),
-              ],
+              ]),
             ),
           ),
+
+          // ── Белая карточка ──
+          Positioned(
+            bottom: 0, left: 0, right: 0,
+            height: size.height * 0.65,
+            child: SlideTransition(
+              position: _cardSlide,
+              child: FadeTransition(
+                opacity: _cardFade,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: kCard,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
+                    boxShadow: [
+                      BoxShadow(color: Color(0x1A0D1F6E), blurRadius: 30, offset: Offset(0, -8)),
+                    ],
+                  ),
+                  padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+
+                        // Бейдж режима
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                          decoration: BoxDecoration(
+                            gradient: kGradient,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(
+                              _isDriver ? Icons.directions_car_rounded : Icons.person_rounded,
+                              color: Colors.white, size: 13,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _isDriver ? 'Водитель' : 'Пассажир',
+                              style: const TextStyle(
+                                color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ]),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        const Text(
+                          'Как вас зовут?',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: kText),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Это имя увидят другие пользователи',
+                          style: TextStyle(fontSize: 14, color: kSubtext),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Поле имени
+                        Container(
+                          decoration: BoxDecoration(
+                            color: kBg,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFDDE3F0)),
+                          ),
+                          child: TextField(
+                            controller: _nameCtrl,
+                            textCapitalization: TextCapitalization.words,
+                            autofocus: true,
+                            onSubmitted: (_) => _register(),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: kText),
+                            decoration: InputDecoration(
+                              hintText: 'Например: Алибек Сейткали',
+                              hintStyle: const TextStyle(color: kSubtext),
+                              prefixIcon: const Icon(Icons.person_rounded, color: kTeal, size: 22),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        if (_error != null) _ErrorBox(message: _error!),
+
+                        const SizedBox(height: 4),
+
+                        _GradientButton(
+                          label: 'Создать аккаунт',
+                          loading: _loading,
+                          onTap: _register,
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // Подсказка для водителя
+                        if (_isDriver)
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: kTeal.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: kTeal.withOpacity(0.2)),
+                            ),
+                            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Icon(Icons.info_outline_rounded, color: kTeal, size: 18),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
+                                  'После регистрации нужно будет указать данные автомобиля и пройти верификацию',
+                                  style: TextStyle(color: kSubtext, fontSize: 13, height: 1.4),
+                                ),
+                              ),
+                            ]),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Кнопка с градиентом ─────────────────────────────────────────────────────
+
+class _GradientButton extends StatelessWidget {
+  final String label;
+  final bool loading;
+  final VoidCallback onTap;
+  const _GradientButton({required this.label, required this.loading, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: loading ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: 56,
+        decoration: BoxDecoration(
+          gradient: loading ? null : kGradient,
+          color: loading ? const Color(0xFFDDE3F0) : null,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: loading ? null : [
+            BoxShadow(color: kNavy.withOpacity(0.35), blurRadius: 16, offset: const Offset(0, 6)),
+          ],
+        ),
+        child: Center(
+          child: loading
+              ? const SizedBox(width: 22, height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: kNavy))
+              : Text(label, style: const TextStyle(
+                  color: Colors.white, fontSize: 16,
+                  fontWeight: FontWeight.w700, letterSpacing: 0.5,
+                )),
         ),
       ),
     );
   }
+}
+
+// ─── Блок ошибки ─────────────────────────────────────────────────────────────
+
+class _ErrorBox extends StatelessWidget {
+  final String message;
+  const _ErrorBox({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF0F0),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFFCDD2)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.error_outline_rounded, color: Color(0xFFD32F2F), size: 18),
+        const SizedBox(width: 8),
+        Expanded(child: Text(message,
+            style: const TextStyle(color: Color(0xFFD32F2F), fontSize: 13))),
+      ]),
+    );
+  }
+}
+
+// ─── Орнамент в шапке ────────────────────────────────────────────────────────
+
+class _RegOrnamentPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = Colors.white.withOpacity(0.07)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    final r = size.width * 0.25;
+
+    void arc(Offset o, double rot) {
+      canvas.save();
+      canvas.translate(o.dx, o.dy);
+      canvas.rotate(rot);
+      for (final s in [1.0, 0.6, 0.32]) {
+        canvas.drawArc(Rect.fromCircle(center: Offset.zero, radius: r * s), 0, pi / 2, false, p);
+      }
+      canvas.restore();
+    }
+
+    arc(Offset.zero,                          0);
+    arc(Offset(size.width, 0),          pi / 2);
+    arc(Offset(0, size.height),        -pi / 2);
+    arc(Offset(size.width, size.height), pi);
+  }
+
+  @override
+  bool shouldRepaint(_) => false;
 }

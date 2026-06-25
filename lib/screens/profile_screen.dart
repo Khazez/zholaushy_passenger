@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
-
-const String _apiBase = 'http://localhost:8000/api/v1';
+import '../config.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -45,7 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (token == null) return;
     try {
       final res = await Dio().get(
-        '$_apiBase/auth/me',
+        '$kApiBase/auth/me',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       final d = res.data;
@@ -60,7 +59,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Загружаем полученные оценки
       try {
         final ratingsRes = await Dio().get(
-          '$_apiBase/ratings/received',
+          '$kApiBase/ratings/received',
           options: Options(headers: {'Authorization': 'Bearer $token'}),
         );
         final list = ratingsRes.data is List ? ratingsRes.data as List : [];
@@ -110,7 +109,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final token = _getToken();
       await Dio().patch(
-        '$_apiBase/auth/me',
+        '$kApiBase/auth/me',
         data: {'name': newName},
         options: Options(
           headers: {

@@ -1,12 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import '../app_state.dart';
 
-// TODO: заменить на реальные контакты перед запуском
-const String _supportPhone    = '+77000000000';
-const String _supportWhatsApp = '+77000000000';
-const String _supportTelegram = 'zholaushy_support';
+import '../config.dart';
 
 void _openUrl(String url) => html.window.open(url, '_blank');
 
@@ -22,6 +20,35 @@ class SupportScreen extends StatefulWidget {
 class _SupportScreenState extends State<SupportScreen> {
   final _msgCtrl = TextEditingController();
 
+  String _phone    = '';
+  String _whatsApp = '';
+  String _telegram = '';
+  bool   _loaded   = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContacts();
+  }
+
+  Future<void> _loadContacts() async {
+    try {
+      final raw = await html.HttpRequest.getString('$kApiBase/settings/public');
+      final list = jsonDecode(raw) as List<dynamic>;
+      final map = {for (final s in list) s['key'] as String: s['value'] as String};
+      if (mounted) {
+        setState(() {
+          _phone    = map['support_phone']    ?? '';
+          _whatsApp = map['support_whatsapp'] ?? '';
+          _telegram = map['support_telegram'] ?? '';
+          _loaded   = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loaded = true);
+    }
+  }
+
   @override
   void dispose() {
     _msgCtrl.dispose();
@@ -32,7 +59,7 @@ class _SupportScreenState extends State<SupportScreen> {
     final msg = _msgCtrl.text.trim();
     if (msg.isEmpty) return;
     final encoded = Uri.encodeComponent(msg);
-    _openUrl('https://wa.me/${_supportWhatsApp.replaceAll('+', '')}?text=$encoded');
+    _openUrl('https://wa.me/${_whatsApp.replaceAll('+', '')}?text=$encoded');
   }
 
   @override
@@ -47,7 +74,9 @@ class _SupportScreenState extends State<SupportScreen> {
         title: const Text('Служба поддержки', style: TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
       ),
-      body: SingleChildScrollView(
+      body: !_loaded
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
@@ -56,9 +85,9 @@ class _SupportScreenState extends State<SupportScreen> {
             _ContactRow(
               icon: Icons.phone_outlined,
               label: 'Телефон',
-              value: _supportPhone,
+              value: _phone.isEmpty ? '—' : _phone,
               primary: primary,
-              onTap: () => _openUrl('tel:$_supportPhone'),
+              onTap: _phone.isEmpty ? null : () => _openUrl('tel:$_phone'),
             ),
             Divider(height: 1, indent: 56, color: Colors.grey[100]),
             _ContactRow(
@@ -76,12 +105,12 @@ class _SupportScreenState extends State<SupportScreen> {
           Row(children: [
             Expanded(child: _MessengerBtn(
               label: 'WhatsApp', color: const Color(0xFF25D366), icon: Icons.chat_bubble_outline,
-              onTap: () => _openUrl('https://wa.me/${_supportWhatsApp.replaceAll('+', '')}'),
+              onTap: () => _openUrl('https://wa.me/${_whatsApp.replaceAll('+', '')}'),
             )),
             const SizedBox(width: 12),
             Expanded(child: _MessengerBtn(
               label: 'Telegram', color: const Color(0xFF2CA5E0), icon: Icons.send_outlined,
-              onTap: () => _openUrl('https://t.me/$_supportTelegram'),
+              onTap: () => _openUrl('https://t.me/$_telegram'),
             )),
           ]),
 

@@ -3,8 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
-
-const String _apiBase = 'http://localhost:8000/api/v1';
+import '../config.dart';
 
 class PendingScreen extends StatefulWidget {
   const PendingScreen({super.key});
@@ -32,7 +31,7 @@ class _PendingScreenState extends State<PendingScreen> {
     if (token == null) { if (mounted) context.go('/login'); return; }
     try {
       final res = await Dio().get(
-        '$_apiBase/drivers/profile',
+        '$kApiBase/drivers/profile',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       final profile = res.data['data'];

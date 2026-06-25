@@ -6,6 +6,8 @@ import 'dart:html' as html;
 
 import 'fcm_service.dart';
 import 'app_state.dart';
+import 'theme.dart';
+import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
@@ -59,14 +61,10 @@ class _ZholaushyAppState extends State<ZholaushyApp> {
 
   @override
   Widget build(BuildContext context) {
-    final token = html.window.localStorage['token'];
-    final mode  = html.window.localStorage['mode'] ?? 'passenger';
-
     final router = GoRouter(
-      initialLocation: token != null
-          ? (mode == 'driver' ? '/driver-home' : '/home')
-          : '/login',
+      initialLocation: '/splash',
       routes: [
+        GoRoute(path: '/splash',      builder: (_, __) => const SplashScreen()),
         GoRoute(path: '/login',       builder: (_, __) => const LoginScreen()),
         GoRoute(
           path: '/register',
@@ -93,39 +91,11 @@ class _ZholaushyAppState extends State<ZholaushyApp> {
       ],
     );
 
-    const seed = Color(0xFF1A73E8);
-
-    final inputTheme = InputDecorationTheme(
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    );
-    final buttonTheme = ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 52),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      ),
-    );
-
     return MaterialApp.router(
       title: 'Жолаушы',
       debugShowCheckedModeBanner: false,
-      themeMode: AppState.themeNotifier.value,
-
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.light),
-        useMaterial3: true,
-        inputDecorationTheme: inputTheme,
-        elevatedButtonTheme: buttonTheme,
-      ),
-
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark),
-        useMaterial3: true,
-        inputDecorationTheme: inputTheme,
-        elevatedButtonTheme: buttonTheme,
-      ),
-
+      themeMode: ThemeMode.light,
+      theme: buildAppTheme(),
       routerConfig: router,
     );
   }

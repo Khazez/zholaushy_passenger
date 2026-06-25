@@ -5,8 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'dart:html' as html;
 import 'driver_profile_screen.dart';
 import 'info_screens.dart';
-
-const String _driverApiBase = 'http://localhost:8000/api/v1';
+import '../config.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -39,7 +38,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
     if (token == null) { if (mounted) context.go('/login'); return; }
     try {
       final res = await Dio().get(
-        '$_driverApiBase/drivers/profile',
+        '$kApiBase/drivers/profile',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       if (res.data['data']['is_verified'] != true && mounted) {
@@ -175,7 +174,7 @@ class _RequestsTabState extends State<_RequestsTab> {
 
   Future<void> _loadRoutes() async {
     try {
-      final res = await Dio().get('$_driverApiBase/routes/');
+      final res = await Dio().get('$kApiBase/routes/');
       final data = res.data;
       final list = data is Map ? (data['data'] ?? []) : data;
       if (mounted) setState(() => _routes = List<Map<String, dynamic>>.from(list));
@@ -189,7 +188,7 @@ class _RequestsTabState extends State<_RequestsTab> {
     try {
       final params = _selectedRouteId != null ? {'route_id': _selectedRouteId} : null;
       final res = await Dio().get(
-        '$_driverApiBase/trip-requests/',
+        '$kApiBase/trip-requests/',
         queryParameters: params,
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       ).timeout(const Duration(seconds: 8));
@@ -366,7 +365,7 @@ class _PassengerRequestCardState extends State<_PassengerRequestCard> {
     final token = widget.getToken();
     try {
       await Dio().post(
-        '$_driverApiBase/trip-requests/offers',
+        '$kApiBase/trip-requests/offers',
         data: {'request_id': widget.request['id'], 'price_per_seat': price},
         options: Options(
           headers: {
@@ -603,7 +602,7 @@ class _MyOffersTabState extends State<_MyOffersTab> {
     if (token == null) return;
     try {
       final res = await Dio().get(
-        '$_driverApiBase/trips/my-offers',
+        '$kApiBase/trips/my-offers',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       ).timeout(const Duration(seconds: 8));
       final all = res.data is List ? res.data as List : [];
@@ -696,7 +695,7 @@ class _OfferCardState extends State<_OfferCard> {
     final token = widget.getToken();
     try {
       await Dio().delete(
-        '$_driverApiBase/trip-requests/offers/$offerId',
+        '$kApiBase/trip-requests/offers/$offerId',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       ).timeout(const Duration(seconds: 8));
       widget.onCancelled();
@@ -974,7 +973,7 @@ class _MyTripsTabState extends State<_MyTripsTab> {
 
   Future<void> _loadRoutes() async {
     try {
-      final res = await Dio().get('$_driverApiBase/routes/');
+      final res = await Dio().get('$kApiBase/routes/');
       final data = res.data;
       setState(() => _routes = data is Map ? (data['data'] ?? []) : data);
     } catch (_) {}
@@ -987,9 +986,9 @@ class _MyTripsTabState extends State<_MyTripsTab> {
     try {
       final headers = {'Authorization': 'Bearer $token'};
       final results = await Future.wait([
-        Dio().get('$_driverApiBase/trips/', queryParameters: {'my': true},
+        Dio().get('$kApiBase/trips/', queryParameters: {'my': true},
             options: Options(headers: headers)).timeout(const Duration(seconds: 8)),
-        Dio().get('$_driverApiBase/bookings/for-driver',
+        Dio().get('$kApiBase/bookings/for-driver',
             options: Options(headers: headers)).timeout(const Duration(seconds: 8)),
       ]);
       final tripsData    = results[0].data;
@@ -1026,7 +1025,7 @@ class _MyTripsTabState extends State<_MyTripsTab> {
     final token = widget.getToken();
     try {
       await Dio().patch(
-        '$_driverApiBase/trips/$tripId/complete',
+        '$kApiBase/trips/$tripId/complete',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
 
@@ -1116,7 +1115,7 @@ class _MyTripsTabState extends State<_MyTripsTab> {
                 final comment = commentCtrl.text.trim();
                 try {
                   await Dio().post(
-                    '$_driverApiBase/ratings/',
+                    '$kApiBase/ratings/',
                     data: {
                       'trip_id': tripId,
                       'to_user_id': passengerId,
@@ -1147,7 +1146,7 @@ class _MyTripsTabState extends State<_MyTripsTab> {
     final token = widget.getToken();
     try {
       await Dio().patch(
-        '$_driverApiBase/trips/$tripId/departing',
+        '$kApiBase/trips/$tripId/departing',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       setState(() => _departedTrips.add(tripId));
@@ -1169,7 +1168,7 @@ class _MyTripsTabState extends State<_MyTripsTab> {
     final token = widget.getToken();
     try {
       await Dio().patch(
-        '$_driverApiBase/trips/$tripId/arrived',
+        '$kApiBase/trips/$tripId/arrived',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       setState(() => _arrivedTrips.add(tripId));
@@ -1209,7 +1208,7 @@ class _MyTripsTabState extends State<_MyTripsTab> {
     final token = widget.getToken();
     try {
       await Dio().patch(
-        '$_driverApiBase/trips/$tripId/cancel',
+        '$kApiBase/trips/$tripId/cancel',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       _load();
@@ -1627,7 +1626,7 @@ class _CreateTripScreenState extends State<_CreateTripScreen> {
 
     try {
       await Dio().post(
-        '$_driverApiBase/trips/',
+        '$kApiBase/trips/',
         queryParameters: {
           'route_id': _routeId,
           'departure_time': dep.toIso8601String(),
