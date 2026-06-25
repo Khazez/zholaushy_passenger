@@ -8,6 +8,24 @@ import 'info_screens.dart';
 
 const String apiBase = 'http://localhost:8000/api/v1';
 
+// Кнопки "Позвонить" и "WhatsApp" для номера телефона
+Widget _phoneButtons(String phone, Color primary, {bool compact = false}) {
+  return SizedBox(
+    width: double.infinity,
+    child: OutlinedButton.icon(
+      onPressed: () => html.window.open('tel:$phone', '_self'),
+      icon: Icon(Icons.phone_outlined, size: compact ? 14 : 16),
+      label: Text('Позвонить', style: TextStyle(fontSize: compact ? 12 : 13)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: primary,
+        side: BorderSide(color: primary.withValues(alpha: 0.5)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        padding: EdgeInsets.symmetric(vertical: compact ? 6 : 8),
+      ),
+    ),
+  );
+}
+
 // Пара полей: адрес + подъезд
 class _AddrPair {
   final TextEditingController address;
@@ -61,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   void _logout() {
     html.window.localStorage.remove('token');
+    html.window.localStorage.remove('mode');
     context.go('/login');
   }
 
@@ -352,6 +371,7 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
 
   Future<void> _showRatingDialog() async {
     int selectedScore = 0;
+    final commentCtrl = TextEditingController();
     final driverName = widget.request['driver_name'] ?? 'водителя';
     await showDialog(
       context: context,
@@ -386,6 +406,16 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                 style: TextStyle(color: Colors.amber[700], fontWeight: FontWeight.w600),
               ),
             ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: commentCtrl,
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'Комментарий (необязательно)',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
           ]),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
@@ -394,6 +424,7 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                   ? null
                   : () async {
                       final token = widget.getToken();
+                      final comment = commentCtrl.text.trim();
                       try {
                         await Dio().post(
                           '$apiBase/ratings/',
@@ -401,6 +432,7 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                             'trip_id': widget.request['trip_id'],
                             'to_user_id': widget.request['driver_user_id'],
                             'score': selectedScore,
+                            if (comment.isNotEmpty) 'comment': comment,
                           },
                           options: Options(
                             headers: {'Authorization': 'Bearer $token'},
@@ -500,17 +532,8 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                   Text(request['driver_name'], style: const TextStyle(fontWeight: FontWeight.w500)),
                 ]),
               if (request['driver_phone'] != null) ...[
-                const SizedBox(height: 4),
-                GestureDetector(
-                  onTap: () => html.window.open('tel:${request['driver_phone']}', '_blank'),
-                  child: Row(children: [
-                    Icon(Icons.phone_outlined, size: 16, color: primary),
-                    const SizedBox(width: 6),
-                    Text(request['driver_phone'],
-                        style: TextStyle(color: primary, fontWeight: FontWeight.w500,
-                            decoration: TextDecoration.underline)),
-                  ]),
-                ),
+                const SizedBox(height: 10),
+                _phoneButtons(request['driver_phone'] as String, primary),
               ],
               if (request['car_brand'] != null || request['car_number'] != null) ...[
                 const SizedBox(height: 8),
@@ -1093,15 +1116,18 @@ class _OfferCard extends StatelessWidget {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(offer['driver_name'] ?? '—',
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-            GestureDetector(
-              onTap: () => html.window.open('tel:${offer['driver_phone']}', '_blank'),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.phone_outlined, size: 13, color: primary),
-                const SizedBox(width: 3),
-                Text(offer['driver_phone'] ?? '—',
-                    style: TextStyle(color: primary, fontSize: 13, fontWeight: FontWeight.w500)),
-              ]),
-            ),
+            const SizedBox(height: 2),
+            Row(children: [
+              if (offer['driver_avg_rating'] != null) ...[
+                Icon(Icons.star_rounded, size: 13, color: Colors.amber[600]),
+                const SizedBox(width: 2),
+                Text('${offer['driver_avg_rating']}',
+                    style: TextStyle(fontSize: 12, color: Colors.amber[800], fontWeight: FontWeight.w600)),
+                const SizedBox(width: 8),
+              ],
+              if (offer['driver_phone'] != null)
+                _phoneButtons(offer['driver_phone'] as String, primary, compact: true),
+            ]),
           ])),
           // Цена за всё
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [

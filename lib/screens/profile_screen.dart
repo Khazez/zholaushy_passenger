@@ -20,6 +20,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _name = '';
   String _phone = '';
   String _createdAt = '';
+  List<dynamic> _ratings = [];
+  double? _avgRating;
 
   late TextEditingController _nameCtrl;
 
@@ -54,6 +56,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _nameCtrl.text = _name;
         _loading = false;
       });
+
+      // Загружаем полученные оценки
+      try {
+        final ratingsRes = await Dio().get(
+          '$_apiBase/ratings/received',
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+        final list = ratingsRes.data is List ? ratingsRes.data as List : [];
+        double? avg;
+        if (list.isNotEmpty) {
+          avg = list.map((r) => (r['score'] as num).toDouble()).reduce((a, b) => a + b) / list.length;
+          avg = double.parse(avg.toStringAsFixed(1));
+        }
+        if (mounted) setState(() { _ratings = list; _avgRating = avg; });
+      } catch (_) {}
+
     } catch (e) {
       setState(() => _loading = false);
       if (mounted) {
@@ -326,9 +344,77 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
 
+                // ── Оценки (полученные от водителей) ──
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 16, offset: const Offset(0, 4))],
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                        child: Row(children: [
+                          Icon(Icons.star_rounded, color: Colors.amber[600], size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(child: const Text('Мой рейтинг',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
+                          if (_avgRating != null) ...[
+                            Text('$_avgRating', style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 18, color: Colors.amber[700])),
+                            const SizedBox(width: 4),
+                            Text('/ 5', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                          ],
+                        ]),
+                      ),
+                      const Divider(height: 1, indent: 20, endIndent: 20),
+                      if (_ratings.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          child: Text('Оценок пока нет',
+                              style: TextStyle(color: Colors.grey[400], fontSize: 13)),
+                        )
+                      else
+                        for (final r in _ratings) _ratingRow(r),
+                    ]),
+                  ),
+                ),
+
                 const SizedBox(height: 32),
               ]),
             ),
+    );
+  }
+
+  Widget _ratingRow(Map<String, dynamic> r) {
+    final score = r['score'] as int? ?? 0;
+    final comment = r['comment'] as String?;
+    final fromName = r['from_name'] as String? ?? '?';
+    final date = r['created_at'] != null ? DateTime.tryParse(r['created_at']) : null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Row(children: List.generate(5, (i) => Icon(
+            (i + 1) <= score ? Icons.star_rounded : Icons.star_outline_rounded,
+            color: Colors.amber[600], size: 16,
+          ))),
+          const SizedBox(width: 8),
+          Expanded(child: Text(fromName,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+          if (date != null)
+            Text('${date.day.toString().padLeft(2,'0')}.${date.month.toString().padLeft(2,'0')}.${date.year}',
+                style: TextStyle(color: Colors.grey[400], fontSize: 11)),
+        ]),
+        if (comment != null && comment.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(comment, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+        ],
+        const Divider(height: 16, thickness: 0.5),
+      ]),
     );
   }
 

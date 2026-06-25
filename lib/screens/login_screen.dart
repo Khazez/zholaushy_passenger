@@ -16,14 +16,22 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  int _step = 1;
-  bool _loading = false;
+  String _mode = 'passenger';
+  int    _step = 1; // 1 = телефон, 2 = код
+  bool   _loading = false;
   String? _error;
 
   final _phoneCtrl = TextEditingController();
-  final _codeCtrl = TextEditingController();
+  final _codeCtrl  = TextEditingController();
 
   String get _fullPhone => '+77${_phoneCtrl.text.trim()}';
+
+  @override
+  void dispose() {
+    _phoneCtrl.dispose();
+    _codeCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _sendCode() async {
     final digits = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
@@ -56,17 +64,15 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final res = await Dio().post(
         '$_apiBase/auth/verify-otp',
-        queryParameters: {'phone': _fullPhone, 'code': code},
+        queryParameters: {'phone': _fullPhone, 'code': code, 'role': _mode},
       );
       final token = res.data['access_token'] as String;
-      html.window.localStorage['token'] = token;
-      registerFcmToken(token);
-      if (mounted) context.go('/home');
+      await _saveAndNavigate(token);
     } on DioException catch (e) {
       final detail = e.response?.data?['detail'];
       if (detail == 'Новый пользователь — укажите имя') {
         if (mounted) {
-          context.go('/register', extra: {'phone': _fullPhone, 'code': code});
+          context.go('/register', extra: {'phone': _fullPhone, 'code': code, 'mode': _mode});
         }
       } else {
         setState(() {
@@ -77,15 +83,57 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _phoneCtrl.dispose();
-    _codeCtrl.dispose();
-    super.dispose();
+  Future<void> _saveAndNavigate(String token) async {
+    html.window.localStorage['token'] = token;
+    html.window.localStorage['mode']  = _mode;
+
+    // Сохраняем имя
+    try {
+      final me = await Dio().get(
+        '$_apiBase/auth/me',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final name = me.data['name'] as String? ?? '';
+      if (name.isNotEmpty) html.window.localStorage['name'] = name;
+    } catch (_) {}
+
+    registerFcmToken(token);
+
+    if (_mode == 'passenger') {
+      if (mounted) context.go('/home');
+    } else {
+      await _checkDriverProfile(token);
+    }
+  }
+
+  Future<void> _checkDriverProfile(String token) async {
+    try {
+      final res = await Dio().get(
+        '$_apiBase/drivers/profile',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final profile = res.data['data'];
+      if (mounted) {
+        if (profile['is_verified'] == true) {
+          context.go('/driver-home');
+        } else {
+          context.go('/pending');
+        }
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        if (mounted) context.go('/car-info');
+      } else {
+        if (mounted) setState(() { _error = 'Ошибка проверки профиля водителя'; _loading = false; });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final primary  = Theme.of(context).colorScheme.primary;
+    final isDriver = _mode == 'driver';
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: Center(
@@ -97,15 +145,44 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Жолаушы',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text(
-                  _step == 1 ? 'Введите номер телефона' : 'Введите код из СМС',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
+
+                // Логотип
+                Center(child: Column(children: [
+                  Container(
+                    width: 72, height: 72,
+                    decoration: BoxDecoration(color: primary, borderRadius: BorderRadius.circular(20)),
+                    child: Icon(
+                      isDriver ? Icons.directions_car_outlined : Icons.person_outlined,
+                      color: Colors.white, size: 40,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Жолаушы',
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text('Межгородские поездки',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 14)),
+                ])),
+
                 const SizedBox(height: 32),
 
+                // Тоггл Пассажир / Водитель (только на шаге 1)
+                if (_step == 1) ...[
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: Row(children: [
+                      _toggleTab('Пассажир', Icons.person_outlined,         'passenger', primary),
+                      _toggleTab('Водитель',  Icons.directions_car_outlined, 'driver',    primary),
+                    ]),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+
+                // Шаг 1: телефон
                 if (_step == 1) ...[
                   TextField(
                     controller: _phoneCtrl,
@@ -121,13 +198,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       hintText: 'XX XXX XX XX',
                       labelText: 'Номер телефона',
                     ),
+                    onSubmitted: (_) => _sendCode(),
                   ),
                   const SizedBox(height: 16),
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(_error!, style: const TextStyle(color: Colors.red)),
-                    ),
+                  if (_error != null) _errorBox(_error!),
                   ElevatedButton(
                     onPressed: _loading ? null : _sendCode,
                     child: _loading
@@ -135,7 +209,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                         : const Text('Получить код'),
                   ),
-                ] else ...[
+                ]
+                // Шаг 2: код
+                else ...[
                   Text('Код отправлен на $_fullPhone',
                       style: TextStyle(color: Colors.grey[600])),
                   const SizedBox(height: 16),
@@ -154,11 +230,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     onChanged: (v) { if (v.length == 4) _verifyCode(); },
                   ),
                   const SizedBox(height: 16),
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(_error!, style: const TextStyle(color: Colors.red)),
-                    ),
+                  if (_error != null) _errorBox(_error!),
                   ElevatedButton(
                     onPressed: _loading ? null : _verifyCode,
                     child: _loading
@@ -183,4 +255,49 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
+  Widget _toggleTab(String label, IconData icon, String value, Color primary) {
+    final selected = _mode == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _mode = value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: selected
+                ? [BoxShadow(color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 8, offset: const Offset(0, 2))]
+                : [],
+          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, size: 18, color: selected ? primary : Colors.grey[500]),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              color: selected ? primary : Colors.grey[500],
+              fontSize: 14,
+            )),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _errorBox(String msg) => Container(
+    padding: const EdgeInsets.all(12),
+    margin: const EdgeInsets.only(bottom: 12),
+    decoration: BoxDecoration(
+      color: Colors.red[50],
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: Colors.red[200]!),
+    ),
+    child: Row(children: [
+      Icon(Icons.error_outline, color: Colors.red[600], size: 18),
+      const SizedBox(width: 8),
+      Expanded(child: Text(msg, style: TextStyle(color: Colors.red[700], fontSize: 13))),
+    ]),
+  );
 }

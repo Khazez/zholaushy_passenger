@@ -7,11 +7,16 @@ import '../fcm_service.dart';
 
 const String _regApiBase = 'http://localhost:8000/api/v1';
 
-// Этот экран открывается только когда номер новый (пришли из login_screen с phone+code)
 class RegisterScreen extends StatefulWidget {
   final String phone;
   final String code;
-  const RegisterScreen({super.key, required this.phone, required this.code});
+  final String mode; // 'passenger' | 'driver'
+  const RegisterScreen({
+    super.key,
+    required this.phone,
+    required this.code,
+    this.mode = 'passenger',
+  });
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -21,6 +26,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _register() async {
     final name = _nameCtrl.text.trim();
@@ -34,14 +45,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
         '$_regApiBase/auth/verify-otp',
         queryParameters: {
           'phone': widget.phone,
-          'code': widget.code,
-          'name': name,
+          'code':  widget.code,
+          'name':  name,
+          'role':  widget.mode,
         },
       );
       final token = res.data['access_token'] as String;
       html.window.localStorage['token'] = token;
+      html.window.localStorage['mode']  = widget.mode;
+      html.window.localStorage['name']  = name;
       registerFcmToken(token);
-      if (mounted) context.go('/home');
+
+      if (widget.mode == 'driver') {
+        // Новый водитель — сразу на ввод данных машины
+        if (mounted) context.go('/car-info');
+      } else {
+        if (mounted) context.go('/home');
+      }
     } on DioException catch (e) {
       setState(() {
         _error = e.response?.data?['detail'] ?? 'Ошибка регистрации';
@@ -51,13 +71,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   @override
-  void dispose() {
-    _nameCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final isDriver = widget.mode == 'driver';
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -76,11 +93,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Создать аккаунт',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text('Номер ${widget.phone} подтверждён',
-                    style: TextStyle(color: Colors.grey[600])),
+
+                Center(child: Column(children: [
+                  Container(
+                    width: 64, height: 64,
+                    decoration: BoxDecoration(color: primary, borderRadius: BorderRadius.circular(18)),
+                    child: Icon(
+                      isDriver ? Icons.directions_car_outlined : Icons.person_add_outlined,
+                      color: Colors.white, size: 36,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Создать аккаунт',
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text('Номер ${widget.phone} подтверждён',
+                      style: TextStyle(color: Colors.grey[600])),
+                  if (isDriver) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text('Режим: Водитель',
+                          style: TextStyle(color: primary, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ),
+                  ],
+                ])),
+
                 const SizedBox(height: 32),
 
                 TextField(
@@ -96,9 +138,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 16),
 
                 if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.red[200]!),
+                    ),
+                    child: Row(children: [
+                      Icon(Icons.error_outline, color: Colors.red[600], size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(_error!,
+                          style: TextStyle(color: Colors.red[700], fontSize: 13))),
+                    ]),
                   ),
 
                 ElevatedButton(

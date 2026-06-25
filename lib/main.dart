@@ -10,6 +10,9 @@ import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/history_screen.dart';
+import 'screens/driver_home_screen.dart';
+import 'screens/car_info_screen.dart';
+import 'screens/pending_screen.dart';
 
 const _firebaseOptions = FirebaseOptions(
   apiKey: 'AIzaSyC5k6vD8moo1cF8ewdF3H-RLx8tslz9a5c',
@@ -57,23 +60,36 @@ class _ZholaushyAppState extends State<ZholaushyApp> {
   @override
   Widget build(BuildContext context) {
     final token = html.window.localStorage['token'];
+    final mode  = html.window.localStorage['mode'] ?? 'passenger';
 
     final router = GoRouter(
-      initialLocation: token != null ? '/home' : '/login',
+      initialLocation: token != null
+          ? (mode == 'driver' ? '/driver-home' : '/home')
+          : '/login',
       routes: [
-        GoRoute(path: '/login',    builder: (_, __) => const LoginScreen()),
+        GoRoute(path: '/login',       builder: (_, __) => const LoginScreen()),
         GoRoute(
           path: '/register',
           builder: (_, state) {
-            final extra = state.extra as Map<String, String>?;
+            final extra = state.extra as Map<String, String>? ?? {};
             return RegisterScreen(
-              phone: extra?['phone'] ?? '',
-              code:  extra?['code']  ?? '',
+              phone: extra['phone'] ?? '',
+              code:  extra['code']  ?? '',
+              mode:  extra['mode']  ?? 'passenger',
             );
           },
         ),
-        GoRoute(path: '/home',    builder: (_, __) => const HomeScreen()),
-        GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
+        GoRoute(path: '/home',        builder: (_, __) => const HomeScreen()),
+        GoRoute(path: '/history',     builder: (_, __) => const HistoryScreen()),
+        GoRoute(path: '/driver-home', builder: (_, __) => const DriverHomeScreen()),
+        GoRoute(
+          path: '/car-info',
+          builder: (_, state) {
+            final isUpdate = state.uri.queryParameters['update'] == 'true';
+            return CarInfoScreen(isUpdate: isUpdate);
+          },
+        ),
+        GoRoute(path: '/pending',     builder: (_, __) => const PendingScreen()),
       ],
     );
 
