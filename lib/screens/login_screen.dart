@@ -174,7 +174,9 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     final size = MediaQuery.of(context).size;
     final isDriver = _mode == 'driver';
 
-    return Scaffold(
+    return Theme(
+      data: buildAppTheme(),
+      child: Scaffold(
       body: Stack(
         children: [
 
@@ -338,6 +340,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           ),
         ],
       ),
+      ),
     );
   }
 }
@@ -407,18 +410,18 @@ class _PhoneField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: kBg,
+        color: context.cardC,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFDDE3F0)),
+        border: Border.all(color: context.divC),
       ),
       child: Row(children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-          decoration: const BoxDecoration(
-            border: Border(right: BorderSide(color: Color(0xFFDDE3F0))),
+          decoration: BoxDecoration(
+            border: Border(right: BorderSide(color: context.divC)),
           ),
-          child: const Text('+7 7', style: TextStyle(
-            fontSize: 16, fontWeight: FontWeight.w600, color: kNavy,
+          child: Text('+7 7', style: TextStyle(
+            fontSize: 16, fontWeight: FontWeight.w600, color: context.iconC,
           )),
         ),
         Expanded(
@@ -431,14 +434,15 @@ class _PhoneField extends StatelessWidget {
               LengthLimitingTextInputFormatter(9),
             ],
             onSubmitted: (_) => onSubmit(),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: kText),
-            decoration: const InputDecoration(
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: context.textC),
+            decoration: InputDecoration(
               hintText: 'XX XXX XX XX',
-              hintStyle: TextStyle(color: kSubtext),
+              hintStyle: TextStyle(color: context.subC),
+              filled: false,
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
             ),
           ),
         ),
@@ -536,6 +540,7 @@ class _OtpBoxState extends State<_OtpBox> {
           style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: kNavy),
           decoration: const InputDecoration(
             counterText: '',
+            filled: false,
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
@@ -615,9 +620,9 @@ class _LoginOrnamentPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final p = Paint()
-      ..color = Colors.white.withOpacity(0.07)
+      ..color = Colors.white.withOpacity(0.25)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
+      ..strokeWidth = 1.2;
 
     void arc(Offset o, double r, double rot) {
       canvas.save();

@@ -9,6 +9,7 @@
 - dart:html window.localStorage — НЕ shared_preferences (MissingPluginException на Web)
 - Dio 5.x — всегда `Content-Type: application/json` в Options для POST/PATCH
 - GoRouter
+- Google Fonts Inter (`google_fonts: ^6.2.1`) — `fontFamily` выставлен глобально в ThemeData
 - Бэкенд: http://localhost:8000/api/v1
 - Запуск: `flutter run -d chrome --web-port=3001` (порт 3000 занят админкой)
 
@@ -46,55 +47,90 @@ class _AddrPair {
 ```
 НЕ отправлять как plain strings — бэкенд ожидает объекты.
 
+## Дизайн-система (theme.dart)
+
+### Цвета
+- `kNavy = #0D1F6E` — основной тёмный (текст, AppBar)
+- `kTeal = #17A8C4` — акцент (кнопки, иконки)
+- `kBg = #F4F7FF` — фон страниц
+- `kCard = #FFFFFF` — фон карточек
+- `kGradient` — LinearGradient(topLeft→bottomRight, [kNavy, kTeal])
+- `kGradientVertical` — LinearGradient(top→bottom, [kNavy, #1565C0, kTeal])
+
+### Тёмная тема
+- `kDarkBg = #0F1729`, `kDarkCard = #1A2744`, `kDarkText = #E8EDF8`
+
+### Компоненты
+- `AppBarOrnament` — flexibleSpace для AppBar: рисует градиент + угловые казахские дуги через CustomPainter (foregroundPainter поверх gradient)
+- `BodyOrnament(child: ...)` — Stack с CustomPainter угловых дуг поверх тела экрана (navy, opacity 0.07)
+- `AppColors` extension на BuildContext: `context.bgC`, `.cardC`, `.textC`, `.subC`, `.iconBgC`, `.iconC`, `.shadowC`, `.divC`
+
+### Шрифт
+- `fontFamily: GoogleFonts.inter().fontFamily` установлен в обоих ThemeData (light + dark)
+- Работает для всех Text виджетов, даже с явным TextStyle
+
 ## Что реализовано ✅
 
 ### Пассажирский режим (home_screen.dart)
-- Таб "Поездки": оранжевые карточки (open), синие (accepted с данными водителя)
+- Таб "Поездки": карточки open/accepted с динамическим заголовком (Водитель найден / Выехал / Подъехал)
 - Кнопка "Создать заявку" → `_CreateRequestScreen`
-- Тап на ожидающую заявку → `_OffersScreen` (список офферов)
-- Таб "Попутки": поиск готовых поездок → `_BookingFormScreen`
-- Форма заявки: маршрут, дата/время, места, оплата, адреса А/Б с доп. точками, для кого, комментарий
-- Редактирование заявки (`_EditRequestScreen`) + отмена (DELETE)
-- Принятие оффера: bottom sheet подтверждения адреса → `POST /trip-requests/{id}/accept/{offer_id}`
+- Pull-to-refresh на экране офферов
+- Принятие оффера без подтверждения адреса (напрямую POST)
+- Отмена поездки: сначала DELETE /bookings/{id}, фоллбэк DELETE /trip-requests/{id}
+- Завершённые поездки скрываются после оценки (localStorage `rated_trips`)
+- Рейтинг водителя после поездки + кнопка "Позже"
+- Экран активной поездки (`active_trip_screen.dart`) — поллинг 15с, статус-баннеры, автонавигация после завершения
 
 ### Водительский режим (driver_home_screen.dart)
-- Все экраны из бывшего zholaushy_driver слиты сюда
-- `const String _driverApiBase` (не конфликтует с пассажирским `apiBase`)
-- Выход удаляет `token` и `mode`
+- Табы: Заявки / Поездки / Отклики / Баланс
+- Кнопки "Выехал" / "Подъехал" сохраняются в БД (is_departed, is_arrived) — не сбрасываются при переключении табов
+- Баланс водителя: реальные данные с `GET /drivers/balance`, кнопка "Пополнить" (диалог → обратитесь к админу)
+- Списание 50₸ при каждом отклике, 402 ошибка при нехватке
 
-### Общее
-- История поездок (`history_screen.dart`)
-- Профиль пассажира (`profile_screen.dart`)
-- Профиль водителя + авто (`driver_profile_screen.dart`) — сохраняет имя в `localStorage['name']`
-- Данные автомобиля (`car_info_screen.dart`) — первичный + обновление (`?update=true`)
-- Ожидание верификации (`pending_screen.dart`)
-- Поддержка, Настройки, О приложении (`info_screens.dart`)
+### Push-уведомления ✅
+- Foreground: FirebaseMessaging.onMessage → SnackBar (main.dart)
+- Все события: новый отклик, принятие/отклонение, отзыв, отмена, завершение, Выехал, Подъехал
+
+### Дизайн ✅ (все экраны)
+- splash_screen.dart — анимированный, казахский орнамент, ZHOLAUSHY
+- login_screen.dart, register_screen.dart
+- home_screen.dart — полностью (все внутренние экраны)
+- active_trip_screen.dart — статус-баннеры с анимацией пульса
+- driver_home_screen.dart — все табы
+- history_screen.dart, profile_screen.dart, driver_profile_screen.dart
+- car_info_screen.dart, pending_screen.dart
+- info_screens.dart (Поддержка, Настройки, О приложении)
+
+### LocalStorage
+- `rated_trips` — comma-separated trip IDs уже оценённых поездок
 
 ## Структура файлов
 ```
 zholaushy_passenger/lib/
-├── main.dart                      # GoRouter: /login, /register, /home, /history,
-│                                  #           /driver-home, /car-info, /pending
+├── main.dart                      # GoRouter + foreground push SnackBar
+├── theme.dart                     # Цвета, AppBarOrnament, BodyOrnament, AppColors
 ├── fcm_service.dart               # Firebase Cloud Messaging
 ├── app_state.dart                 # ThemeMode, lang notifiers
 └── screens/
+    ├── splash_screen.dart         # Анимированный сплэш с казахским орнаментом
     ├── login_screen.dart          # OTP + тоггл Пассажир/Водитель
-    ├── register_screen.dart       # Новый пользователь: имя → OTP verify → home/car-info
-    ├── home_screen.dart           # Пассажир: заявки, попутки
-    ├── history_screen.dart        # История завершённых поездок
-    ├── profile_screen.dart        # Профиль пассажира
-    ├── driver_home_screen.dart    # Водитель: заявки пассажиров, мои поездки, отклики
+    ├── register_screen.dart       # Новый пользователь
+    ├── home_screen.dart           # Пассажир: заявки, попутки, активная карточка
+    ├── active_trip_screen.dart    # Экран активной поездки (статус-баннеры, отмена)
+    ├── history_screen.dart        # История завершённых поездок + детали
+    ├── profile_screen.dart        # Профиль пассажира + рейтинг
+    ├── driver_home_screen.dart    # Водитель: заявки, поездки, отклики, баланс
     ├── driver_profile_screen.dart # Профиль водителя + авто
     ├── car_info_screen.dart       # Данные автомобиля
     ├── pending_screen.dart        # Ожидание верификации
     └── info_screens.dart          # Поддержка, Настройки, О приложении
 ```
 
-## Что сделать дальше (план)
-- [ ] Дизайн: цвета, шрифты, анимации, splash screen
-- [ ] Foreground push: `FirebaseMessaging.onMessage` → SnackBar
-- [ ] Экран активной поездки: пассажир принял оффер → данные водителя + кнопка "Отменить"
-- [ ] История: тап → детали поездки (маршрут, водитель, адреса, цена)
-- [ ] Pull-to-refresh на экране офферов
-- [ ] Рейтинг водителя после завершения поездки
-- [ ] Баланс водителя (UI после презентации)
+## Что НЕ сделано (после МВП)
+- [ ] WebSocket — real-time офферы (сейчас поллинг каждые N секунд)
+- [ ] Пополнение баланса через интерфейс (сейчас только через admin API POST /drivers/balance/topup)
+- [ ] Списание за отклик возврат при отзыве оффера (сейчас не возвращается)
+- [ ] Реальная оплата (Kaspi/карта) — интеграция после презентации
+- [ ] Admin-панель: страница пользователей, детали водителя, экспорт CSV
+- [ ] iOS/Android нативные приложения (сейчас только Flutter Web PWA)
+- [ ] Казахские орнаменты в AppBar — визуально не отображаются из-за проблем с Flutter Web CustomPainter в flexibleSpace

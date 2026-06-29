@@ -3,19 +3,24 @@ import 'package:dio/dio.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import '../config.dart';
+import '../theme.dart';
 
-Widget _phoneButtons(String phone, Color primary) {
+Widget _phoneButtons(String phone) {
   return SizedBox(
     width: double.infinity,
-    child: OutlinedButton.icon(
-      onPressed: () => html.window.open('tel:$phone', '_self'),
-      icon: const Icon(Icons.phone_outlined, size: 16),
-      label: const Text('Позвонить', style: TextStyle(fontSize: 13)),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: primary,
-        side: BorderSide(color: primary.withValues(alpha: 0.5)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        padding: const EdgeInsets.symmetric(vertical: 8),
+    child: GestureDetector(
+      onTap: () => html.window.open('tel:$phone', '_self'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          border: Border.all(color: kTeal.withOpacity(0.5)),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(Icons.phone_outlined, size: 16, color: kTeal),
+          SizedBox(width: 6),
+          Text('Позвонить', style: TextStyle(fontSize: 13, color: kTeal, fontWeight: FontWeight.w600)),
+        ]),
       ),
     ),
   );
@@ -68,7 +73,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       }
     } catch (_) {}
 
-    // Заявки InDriver — завершённые (status=accepted + trip_status=completed)
+    // Заявки InDriver — завершённые
     try {
       final res = await dio.get('$kApiBase/trip-requests/my', options: Options(headers: headers));
       final list = res.data is List ? res.data as List : (res.data['data'] ?? []);
@@ -87,7 +92,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       }
     } catch (_) {}
 
-    // Сортируем по дате (новые первые)
     all.sort((a, b) {
       final da = a['departure_time'] != null ? DateTime.tryParse(a['departure_time']) : null;
       final db = b['departure_time'] != null ? DateTime.tryParse(b['departure_time']) : null;
@@ -100,83 +104,123 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (mounted) setState(() { _trips = all; _loading = false; });
   }
 
-  void _showDriverInfo(BuildContext context, Map<String, dynamic> trip) {
+  void _showTripDetails(BuildContext context, Map<String, dynamic> trip) {
     final name  = trip['driver_name']  as String? ?? '—';
     final phone = trip['driver_phone'] as String? ?? '—';
     final route = trip['route_name']   as String? ?? '—';
+    final seats = trip['seats'];
+    final price = trip['price'] as num?;
     final dt    = trip['departure_time'] != null
         ? DateTime.tryParse(trip['departure_time'])
         : null;
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: context.cardC,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Center(
-            child: Container(width: 40, height: 4,
-                decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
-          ),
+
+          // Ручка
+          Center(child: Container(width: 40, height: 4,
+              decoration: BoxDecoration(color: context.divC, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 16),
-          Text(route, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+
+          // Заголовок + бейдж
+          Row(children: [
+            Expanded(child: Text(route,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: context.textC))),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: kTeal.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text('Завершено',
+                  style: TextStyle(color: kTeal, fontSize: 12, fontWeight: FontWeight.w600)),
+            ),
+          ]),
+
           if (dt != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               '${dt.day.toString().padLeft(2,'0')}.${dt.month.toString().padLeft(2,'0')}.${dt.year}  '
               '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}',
-              style: TextStyle(color: Colors.grey[500], fontSize: 13),
+              style: TextStyle(color: context.subC, fontSize: 14),
             ),
           ],
+
           const SizedBox(height: 20),
-          const Text('Данные водителя',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey)),
+          Divider(height: 1, color: context.divC),
+          const SizedBox(height: 20),
+
+          // Детали поездки
+          Text('Детали поездки',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: context.subC)),
           const SizedBox(height: 12),
-          _infoRow(Icons.person_outline, 'Имя', name),
-          const SizedBox(height: 10),
-          _infoRow(Icons.phone_outlined, 'Телефон', phone),
+          if (seats != null) ...[
+            _infoRow(context, Icons.event_seat_outlined, 'Мест', '$seats'),
+            const SizedBox(height: 10),
+          ],
+          if (price != null) ...[
+            _infoRow(context, Icons.payments_outlined, 'Стоимость', '${price.toStringAsFixed(0)} ₸'),
+            const SizedBox(height: 10),
+          ],
+
+          const SizedBox(height: 4),
+          Divider(height: 1, color: context.divC),
           const SizedBox(height: 16),
-          _phoneButtons(phone, Theme.of(context).colorScheme.primary),
-          const SizedBox(height: 24),
+
+          // Данные водителя
+          Text('Водитель',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: context.subC)),
+          const SizedBox(height: 12),
+          _infoRow(context, Icons.person_outline, 'Имя', name),
+          const SizedBox(height: 10),
+          _infoRow(context, Icons.phone_outlined, 'Телефон', phone),
+          const SizedBox(height: 16),
+          if (phone != '—') _phoneButtons(phone),
+          const SizedBox(height: 8),
         ]),
       ),
     );
   }
 
-  Widget _infoRow(IconData icon, String label, String value) {
+  Widget _infoRow(BuildContext context, IconData icon, String label, String value) {
     return Row(children: [
       Container(
         width: 38, height: 38,
         decoration: BoxDecoration(
-          color: Colors.grey[100],
+          color: context.iconBgC,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Icon(icon, size: 18, color: Colors.grey[600]),
+        child: Icon(icon, size: 18, color: context.iconC),
       ),
       const SizedBox(width: 12),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-        Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+        Text(label, style: TextStyle(fontSize: 11, color: context.subC)),
+        Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: context.textC)),
       ]),
     ]);
   }
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: context.bgC,
       appBar: AppBar(
-        backgroundColor: primary,
+        backgroundColor: kNavy,
         foregroundColor: Colors.white,
         title: const Text('История поездок', style: TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
+        flexibleSpace: const AppBarOrnament(),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
+      body: BodyOrnament(child: _loading
+          ? const Center(child: CircularProgressIndicator(color: kNavy))
           : _trips.isEmpty
               ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.history, size: 72, color: Colors.grey[300]),
@@ -184,6 +228,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   Text('Нет завершённых поездок', style: TextStyle(color: Colors.grey[500])),
                 ]))
               : RefreshIndicator(
+                  color: kNavy,
                   onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
@@ -195,32 +240,33 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           : null;
                       final price = t['price'] as num?;
 
-                      return Card(
+                      return Container(
                         margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
+                        decoration: BoxDecoration(
+                          color: context.cardC,
                           borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(color: Colors.grey[200]!),
+                          border: Border.all(color: context.divC),
+                          boxShadow: [BoxShadow(color: kNavy.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3))],
                         ),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(16),
-                          onTap: () => _showDriverInfo(context, t),
+                          onTap: () => _showTripDetails(context, t),
                           child: Padding(
                             padding: const EdgeInsets.all(16),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Row(children: [
                                 Expanded(child: Text(
                                   t['route_name'] as String? ?? '—',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: context.textC),
                                 )),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.blue[50],
+                                    color: kTeal.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: Text('Завершено',
-                                      style: TextStyle(color: Colors.blue[700], fontSize: 12,
+                                  child: const Text('Завершено',
+                                      style: TextStyle(color: kTeal, fontSize: 12,
                                           fontWeight: FontWeight.w600)),
                                 ),
                               ]),
@@ -247,11 +293,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   style: TextStyle(color: Colors.grey[600], fontSize: 13),
                                 ),
                                 const Spacer(),
-                                Text('Нажмите для контакта',
-                                    style: TextStyle(color: primary, fontSize: 12,
+                                const Text('Нажмите для контакта',
+                                    style: TextStyle(color: kTeal, fontSize: 12,
                                         fontWeight: FontWeight.w500)),
                                 const SizedBox(width: 4),
-                                Icon(Icons.chevron_right, size: 16, color: primary),
+                                const Icon(Icons.chevron_right, size: 16, color: kTeal),
                               ]),
                             ]),
                           ),
@@ -260,7 +306,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     },
                   ),
                 ),
-    );
+    ));
   }
 
   Widget _tripInfo(IconData icon, String text) => Row(mainAxisSize: MainAxisSize.min, children: [

@@ -202,22 +202,6 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                   ),
 
-                  const SizedBox(height: 6),
-
-                  // Казахское название
-                  FadeTransition(
-                    opacity: _logoFade,
-                    child: Text(
-                      'Ж О Л А У Ш Ы',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.45),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 5,
-                      ),
-                    ),
-                  ),
-
                   const SizedBox(height: 20),
 
                   // Разделитель
@@ -394,9 +378,9 @@ class _CornerOrnamentPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.06)
+      ..color = Colors.white.withOpacity(0.22)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
+      ..strokeWidth = 1.2;
 
     final r = size.width * 0.22;
 

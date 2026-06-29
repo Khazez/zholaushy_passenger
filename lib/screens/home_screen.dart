@@ -7,23 +7,22 @@ import 'profile_screen.dart';
 import 'info_screens.dart';
 import '../config.dart';
 import '../theme.dart';
+import '../app_state.dart';
 
 // Кнопки "Позвонить" и "WhatsApp" для номера телефона
 Widget _phoneButtons(String phone, Color primary, {bool compact = false}) {
-  return SizedBox(
-    width: double.infinity,
-    child: OutlinedButton.icon(
-      onPressed: () => html.window.open('tel:$phone', '_self'),
-      icon: Icon(Icons.phone_outlined, size: compact ? 14 : 16),
-      label: Text('Позвонить', style: TextStyle(fontSize: compact ? 12 : 13)),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: primary,
-        side: BorderSide(color: primary.withValues(alpha: 0.5)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        padding: EdgeInsets.symmetric(vertical: compact ? 6 : 8),
-      ),
+  final btn = OutlinedButton.icon(
+    onPressed: () => html.window.open('tel:$phone', '_self'),
+    icon: Icon(Icons.phone_outlined, size: compact ? 14 : 16),
+    label: Text('Позвонить', style: TextStyle(fontSize: compact ? 12 : 13)),
+    style: OutlinedButton.styleFrom(
+      foregroundColor: primary,
+      side: BorderSide(color: primary.withValues(alpha: 0.5)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      padding: EdgeInsets.symmetric(vertical: compact ? 6 : 8),
     ),
   );
+  return compact ? btn : SizedBox(width: double.infinity, child: btn);
 }
 
 // Пара полей: адрес + подъезд
@@ -80,6 +79,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void _logout() {
     html.window.localStorage.remove('token');
     html.window.localStorage.remove('mode');
+    html.window.localStorage['theme'] = 'light';
+    AppState.themeNotifier.value = ThemeMode.light;
     context.go('/login');
   }
 
@@ -97,24 +98,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: context.bgC,
       appBar: AppBar(
         backgroundColor: kNavy,
         foregroundColor: Colors.white,
-        flexibleSpace: const DecoratedBox(
-          decoration: BoxDecoration(gradient: kGradient),
-        ),
-        title: const Text('Жолаушы', style: TextStyle(
-          fontWeight: FontWeight.w800, fontSize: 20, letterSpacing: 0.5,
+        flexibleSpace: const AppBarOrnament(),
+        title: const Text('ZHOLAUSHY', style: TextStyle(
+          fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 3,
         )),
         actions: [
           IconButton(
-            icon: const Icon(Icons.history),
+            icon: Icon(Icons.history),
             tooltip: 'История поездок',
             onPressed: () => context.push('/history'),
           ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
+            icon: Icon(Icons.more_vert),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             offset: const Offset(0, 48),
             elevation: 8,
@@ -161,20 +160,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           indicatorWeight: 3,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white54,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+          labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
           tabs: const [
             Tab(icon: Icon(Icons.directions_car_outlined, size: 20), text: 'Поездки'),
             Tab(icon: Icon(Icons.people_alt_outlined, size: 20), text: 'Попутки'),
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _TripsTab(getToken: _getToken, routes: _routes),
-          _PoputkaTab(getToken: _getToken, routes: _routes),
-        ],
+      body: BodyOrnament(
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _TripsTab(getToken: _getToken, routes: _routes),
+            _PoputkaTab(getToken: _getToken, routes: _routes),
+          ],
+        ),
       ),
     );
   }
@@ -219,7 +220,22 @@ class _TripsTabState extends State<_TripsTab> {
       ).timeout(const Duration(seconds: 6));
       final data = res.data;
       final all = data is List ? data : (data['data'] ?? []);
-      _requests = all.where((r) => r['status'] == 'open' || r['status'] == 'accepted').toList();
+      final ratedIds = (html.window.localStorage['rated_trips'] ?? '')
+          .split(',').where((s) => s.isNotEmpty)
+          .map(int.tryParse).whereType<int>().toSet();
+      _requests = all.where((r) {
+        if (r['status'] == 'open') return true;
+        if (r['status'] == 'accepted') {
+          final ts = r['trip_status'] as String?;
+          if (ts == 'cancelled') return false;
+          if (ts == 'completed') {
+            final tripId = r['trip_id'] as int?;
+            return tripId != null && !ratedIds.contains(tripId);
+          }
+          return true;
+        }
+        return false;
+      }).toList();
     } catch (_) {}
 
     // Загружаем количество офферов для каждой open-заявки параллельно
@@ -286,7 +302,7 @@ class _TripsTabState extends State<_TripsTab> {
     return Column(
       children: [
         Container(
-          color: kCard,
+          color: context.cardC,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: GestureDetector(
             onTap: () => _showCreateRequest(context),
@@ -299,7 +315,7 @@ class _TripsTabState extends State<_TripsTab> {
                   BoxShadow(color: kNavy.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 5)),
                 ],
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.add_circle_outline_rounded, color: Colors.white, size: 22),
@@ -312,7 +328,7 @@ class _TripsTabState extends State<_TripsTab> {
             ),
           ),
         ),
-        const Divider(height: 1, color: kBg),
+        Divider(height: 1, color: context.bgC),
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
@@ -330,14 +346,14 @@ class _TripsTabState extends State<_TripsTab> {
                                 BoxShadow(color: kNavy.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 8)),
                               ],
                             ),
-                            child: const Icon(Icons.directions_car_rounded, size: 44, color: Colors.white),
+                            child: Icon(Icons.directions_car_rounded, size: 44, color: Colors.white),
                           ),
                           const SizedBox(height: 20),
-                          const Text('Нет активных поездок',
-                              style: TextStyle(color: kText, fontWeight: FontWeight.w700, fontSize: 17)),
+                          Text('Нет активных поездок',
+                              style: TextStyle(color: context.textC, fontWeight: FontWeight.w700, fontSize: 17)),
                           const SizedBox(height: 8),
-                          const Text('Создайте заявку — водители предложат цену',
-                              style: TextStyle(color: kSubtext, fontSize: 13)),
+                          Text('Создайте заявку — водители предложат цену',
+                              style: TextStyle(color: context.subC, fontSize: 13)),
                         ],
                       ),
                     )
@@ -400,6 +416,17 @@ class _AcceptedRequestCard extends StatefulWidget {
 class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
   bool _rated = false;
 
+  void _markRated() {
+    final tripId = widget.request['trip_id'] as int?;
+    if (tripId != null) {
+      final existing = html.window.localStorage['rated_trips'] ?? '';
+      html.window.localStorage['rated_trips'] =
+          existing.isEmpty ? '$tripId' : '$existing,$tripId';
+    }
+    setState(() => _rated = true);
+    widget.onRefresh();
+  }
+
   Future<void> _showRatingDialog() async {
     int selectedScore = 0;
     final commentCtrl = TextEditingController();
@@ -411,7 +438,7 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text('Оцените $driverName'),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('Как прошла поездка?', style: TextStyle(color: Colors.grey)),
+            Text('Как прошла поездка?', style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -449,7 +476,7 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
             ),
           ]),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена')),
             ElevatedButton(
               onPressed: selectedScore == 0
                   ? null
@@ -471,7 +498,7 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                           ),
                         );
                         if (ctx.mounted) Navigator.pop(ctx);
-                        setState(() => _rated = true);
+                        _markRated();
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -483,7 +510,7 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                       } on DioException catch (e) {
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (e.response?.statusCode == 400) {
-                          setState(() => _rated = true);
+                          _markRated();
                         } else if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
@@ -498,7 +525,7 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                 backgroundColor: Colors.amber[700],
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Отправить'),
+              child: Text('Отправить'),
             ),
           ],
         ),
@@ -510,14 +537,28 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
   Widget build(BuildContext context) {
     final request = widget.request;
     final date = request['departure_date'] != null ? DateTime.tryParse(request['departure_date']) : null;
+    final isDeparted = request['is_departed'] == true;
+    final isArrived  = request['is_arrived']  == true;
     final canRate = !_rated &&
         request['trip_status'] == 'completed' &&
         request['trip_id'] != null &&
         request['driver_user_id'] != null;
-    return Container(
+
+    // Шапка меняется в зависимости от статуса водителя
+    final (headerGradient, headerIcon, headerText) = isArrived
+        ? (const LinearGradient(colors: [Color(0xFFE65100), Color(0xFFFF8F00)]),
+           Icons.location_on_rounded, 'Водитель подъехал · выходите!')
+        : isDeparted
+        ? (const LinearGradient(colors: [Color(0xFF1565C0), Color(0xFF1E88E5)]),
+           Icons.directions_car_rounded, 'Водитель выехал · едет к вам')
+        : (kGradient, Icons.check_rounded, 'Водитель найден!');
+
+    return GestureDetector(
+      onTap: () => context.push('/active-trip', extra: Map<String, dynamic>.from(widget.request)..['route_name'] = widget.routeName),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: kCard,
+        color: context.cardC,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: kTeal.withOpacity(0.4), width: 1.5),
         boxShadow: [
@@ -528,12 +569,12 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          // Шапка — «Водитель найден»
+          // Шапка — статус водителя
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              gradient: kGradient,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+            decoration: BoxDecoration(
+              gradient: headerGradient,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
             ),
             child: Row(children: [
               Container(
@@ -542,14 +583,14 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                   color: Colors.white.withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check_rounded, color: Colors.white, size: 14),
+                child: Icon(headerIcon, color: Colors.white, size: 14),
               ),
               const SizedBox(width: 10),
-              const Text('Водитель найден!', style: TextStyle(
+              Text(headerText, style: const TextStyle(
                 color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14,
               )),
               const Spacer(),
-              const Icon(Icons.chevron_right_rounded, color: Colors.white54, size: 18),
+              Icon(Icons.chevron_right_rounded, color: Colors.white, size: 18),
             ]),
           ),
 
@@ -560,31 +601,31 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
 
-                Text(widget.routeName, style: const TextStyle(
-                  fontWeight: FontWeight.w800, fontSize: 17, color: kText,
+                Text(widget.routeName, style: TextStyle(
+                  fontWeight: FontWeight.w800, fontSize: 17, color: context.textC,
                 )),
 
                 const SizedBox(height: 8),
 
                 Row(children: [
                   if (date != null) ...[
-                    const Icon(Icons.calendar_today_outlined, size: 14, color: kSubtext),
+                    Icon(Icons.calendar_today_outlined, size: 14, color: context.subC),
                     const SizedBox(width: 5),
                     Text(
                       '${date.day.toString().padLeft(2,'0')}.${date.month.toString().padLeft(2,'0')}.${date.year}  '
                       '${date.hour.toString().padLeft(2,'0')}:${date.minute.toString().padLeft(2,'0')}',
-                      style: const TextStyle(color: kSubtext, fontSize: 13),
+                      style: TextStyle(color: context.subC, fontSize: 13),
                     ),
                     const SizedBox(width: 16),
                   ],
-                  const Icon(Icons.event_seat_outlined, size: 14, color: kSubtext),
+                  Icon(Icons.event_seat_outlined, size: 14, color: context.subC),
                   const SizedBox(width: 5),
-                  Text('${request['seats_needed']} мест', style: const TextStyle(color: kSubtext, fontSize: 13)),
+                  Text('${request['seats_needed']} мест', style: TextStyle(color: context.subC, fontSize: 13)),
                 ]),
 
                 if (request['driver_name'] != null || request['driver_phone'] != null) ...[
                   const SizedBox(height: 14),
-                  const Divider(height: 1, color: kBg),
+                  Divider(height: 1, color: context.bgC),
                   const SizedBox(height: 14),
 
                   // Водитель
@@ -594,9 +635,9 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                       decoration: const BoxDecoration(gradient: kGradient, shape: BoxShape.circle),
                       child: Center(
                         child: Text(
-                          request['driver_name'] != null
-                              ? (request['driver_name'] as String)[0].toUpperCase() : '?',
-                          style: const TextStyle(
+                          ((request['driver_name'] as String?)?.trim().isNotEmpty == true
+                              ? (request['driver_name'] as String).trim()[0] : '?').toUpperCase(),
+                          style: TextStyle(
                             color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -607,8 +648,8 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         if (request['driver_name'] != null)
                           Text(request['driver_name'],
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: kText)),
-                        const Text('Водитель', style: TextStyle(color: kSubtext, fontSize: 12)),
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: context.textC)),
+                        Text('Водитель', style: TextStyle(color: context.subC, fontSize: 12)),
                       ]),
                     ),
                   ]),
@@ -623,12 +664,12 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
-                        color: kBg,
+                        color: context.bgC,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: const Color(0xFFDDE3F0)),
                       ),
                       child: Row(children: [
-                        const Icon(Icons.directions_car_outlined, size: 16, color: kTeal),
+                        Icon(Icons.directions_car_outlined, size: 16, color: kTeal),
                         const SizedBox(width: 8),
                         Expanded(child: Text(
                           [
@@ -637,7 +678,7 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                             if (request['car_year'] != null) '${request['car_year']}',
                             if (request['car_color'] != null) request['car_color'],
                           ].join(' '),
-                          style: const TextStyle(fontSize: 13, color: kText, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 13, color: context.textC, fontWeight: FontWeight.w500),
                         )),
                         if (request['car_number'] != null)
                           Container(
@@ -647,7 +688,7 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(request['car_number'],
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12, fontWeight: FontWeight.bold,
                                   letterSpacing: 1, color: Colors.white,
                                 )),
@@ -659,38 +700,47 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
 
                 if (canRate) ...[
                   const SizedBox(height: 14),
-                  GestureDetector(
-                    onTap: _showRatingDialog,
-                    child: Container(
-                      height: 48,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFF57F17), Color(0xFFFFCA28)],
+                  Row(children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _showRatingDialog,
+                        child: Container(
+                          height: 48,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFF57F17), Color(0xFFFFCA28)],
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(color: Colors.amber.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4)),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.star_rounded, color: Colors.white, size: 20),
+                              SizedBox(width: 8),
+                              Text('Оценить поездку', style: TextStyle(
+                                color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15,
+                              )),
+                            ],
+                          ),
                         ),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(color: Colors.amber.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4)),
-                        ],
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.star_rounded, color: Colors.white, size: 20),
-                          SizedBox(width: 8),
-                          Text('Оценить поездку', style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15,
-                          )),
-                        ],
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: _markRated,
+                      child: Text('Позже', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                    ),
+                  ]),
                 ],
               ],
             ),
           ),
         ],
       ),
-    );
+    )); // GestureDetector
   }
 }
 
@@ -723,7 +773,7 @@ class _ActiveBookingCard extends StatelessWidget {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(booking['route_name'] ?? '—',
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                 if (date != null)
                   Text(
                     '${date.day.toString().padLeft(2,'0')}.${date.month.toString().padLeft(2,'0')}.${date.year}',
@@ -772,7 +822,7 @@ class _PendingRequestCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: kCard,
+          color: context.cardC,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: offerCount > 0 ? kTeal.withOpacity(0.5) : kNavy.withOpacity(0.12),
@@ -801,7 +851,7 @@ class _PendingRequestCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(routeName,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: kText)),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: context.textC)),
               ),
               if (offerCount > 0)
                 Container(
@@ -812,38 +862,38 @@ class _PendingRequestCard extends StatelessWidget {
                   ),
                   child: Text(
                     '$offerCount ${offerCount == 1 ? 'отклик' : 'откликов'}',
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                   ),
                 )
               else
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: kBg,
+                    color: context.bgC,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFFDDE3F0)),
                   ),
-                  child: const Text('Ожидает',
-                      style: TextStyle(color: kSubtext, fontSize: 11, fontWeight: FontWeight.w500)),
+                  child: Text('Ожидает',
+                      style: TextStyle(color: context.subC, fontSize: 11, fontWeight: FontWeight.w500)),
                 ),
             ]),
             const SizedBox(height: 8),
             if (date != null)
               Row(children: [
-                const Icon(Icons.calendar_today_outlined, size: 12, color: kSubtext),
+                Icon(Icons.calendar_today_outlined, size: 12, color: context.subC),
                 const SizedBox(width: 5),
                 Text(
                   '${date.day.toString().padLeft(2,'0')}.${date.month.toString().padLeft(2,'0')}.${date.year}  '
                   '${date.hour.toString().padLeft(2,'0')}:${date.minute.toString().padLeft(2,'0')}',
-                  style: const TextStyle(color: kSubtext, fontSize: 12),
+                  style: TextStyle(color: context.subC, fontSize: 12),
                 ),
               ]),
             const SizedBox(height: 6),
             Wrap(spacing: 8, runSpacing: 4, children: [
-              _chip(Icons.event_seat_outlined, '${request['seats_needed'] ?? 1} мест'),
-              _chip(Icons.payments_outlined, paymentLabel),
+              _chip(context, Icons.event_seat_outlined, '${request['seats_needed'] ?? 1} мест'),
+              _chip(context, Icons.payments_outlined, paymentLabel),
               if (request['pickup_address'] != null)
-                _chip(Icons.location_on_outlined, request['pickup_address']),
+                _chip(context, Icons.location_on_outlined, request['pickup_address']),
             ]),
             const SizedBox(height: 8),
             Row(children: [
@@ -868,10 +918,10 @@ class _PendingRequestCard extends StatelessWidget {
     );
   }
 
-  Widget _chip(IconData icon, String text) => Row(mainAxisSize: MainAxisSize.min, children: [
-    Icon(icon, size: 13, color: kSubtext),
+  Widget _chip(BuildContext context, IconData icon, String text) => Row(mainAxisSize: MainAxisSize.min, children: [
+    Icon(icon, size: 13, color: context.subC),
     const SizedBox(width: 3),
-    Text(text, style: const TextStyle(color: kSubtext, fontSize: 12)),
+    Text(text, style: TextStyle(color: context.subC, fontSize: 12)),
   ]);
 }
 
@@ -895,6 +945,7 @@ class _OffersScreen extends StatefulWidget {
 class _OffersScreenState extends State<_OffersScreen> {
   List<dynamic> _offers = [];
   bool _loading = true;
+  String? _error;
   int? _accepting;
   int? _declining;
 
@@ -907,118 +958,32 @@ class _OffersScreenState extends State<_OffersScreen> {
   }
 
   Future<void> _loadOffers() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     final token = _getToken();
-    if (token == null) return;
+    if (token == null) { setState(() => _loading = false); return; }
     try {
       final res = await Dio().get(
         '$kApiBase/trip-requests/${widget.request['id']}/offers',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
-      ).timeout(const Duration(seconds: 8));
+      ).timeout(const Duration(seconds: 10));
+      final data = res.data;
       setState(() {
-        _offers = res.data is List ? res.data : [];
+        _offers = data is List ? data : (data is Map ? (data['data'] ?? []) : []);
         _loading = false;
       });
-    } catch (_) {
-      setState(() => _loading = false);
+    } on DioException catch (e) {
+      setState(() {
+        _loading = false;
+        _error = e.response?.data?['detail'] ?? 'Ошибка ${e.response?.statusCode ?? "сети"}';
+      });
+    } catch (e) {
+      setState(() { _loading = false; _error = e.toString(); });
     }
   }
 
   Future<void> _accept(int offerId) async {
-    // Показываем подтверждение адреса перед принятием
-    final addressCtrl = TextEditingController(
-        text: widget.request['pickup_address'] as String? ?? '');
-    final entranceCtrl = TextEditingController(
-        text: widget.request['entrance'] as String? ?? '');
-
-    final confirmed = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-            left: 20, right: 20, top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
-        child: Column(mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Адрес подачи',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
-          const SizedBox(height: 4),
-          Text('Водитель увидит этот адрес',
-              style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-          const SizedBox(height: 16),
-          TextField(
-            controller: addressCtrl,
-            autofocus: (widget.request['pickup_address'] as String?)?.isEmpty ?? true,
-            decoration: InputDecoration(
-              labelText: 'Улица, дом',
-              prefixIcon: const Icon(Icons.location_on_outlined),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: entranceCtrl,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: 'Подъезд (необязательно)',
-              prefixIcon: const Icon(Icons.door_front_door_outlined),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(children: [
-            Expanded(child: OutlinedButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-              child: const Text('Отмена'),
-            )),
-            const SizedBox(width: 12),
-            Expanded(child: ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-              child: const Text('Подтвердить', style: TextStyle(fontWeight: FontWeight.bold)),
-            )),
-          ]),
-        ]),
-      ),
-    );
-
-    if (confirmed != true || !mounted) return;
-
-    // Обновляем адрес в заявке если изменился
-    final token = _getToken();
-    final newAddress  = addressCtrl.text.trim();
-    final newEntrance = entranceCtrl.text.trim();
-    final oldAddress  = widget.request['pickup_address'] as String? ?? '';
-    final oldEntrance = widget.request['entrance'] as String? ?? '';
-    if (newAddress != oldAddress || newEntrance != oldEntrance) {
-      try {
-        await Dio().patch(
-          '$kApiBase/trip-requests/${widget.request['id']}',
-          data: {
-            'pickup_address': newAddress.isEmpty ? null : newAddress,
-            'entrance': newEntrance.isEmpty ? null : newEntrance,
-          },
-          options: Options(headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          }),
-        );
-      } catch (_) {}
-    }
-
     setState(() => _accepting = offerId);
+    final token = _getToken();
     try {
       await Dio().post(
         '$kApiBase/trip-requests/${widget.request['id']}/accept/$offerId',
@@ -1091,21 +1056,21 @@ class _OffersScreenState extends State<_OffersScreen> {
     final paymentLabel = payment == 'card' ? 'Карта' : payment == 'kaspi' ? 'Kaspi' : 'Наличные';
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: context.bgC,
       appBar: AppBar(
         backgroundColor: kNavy,
         foregroundColor: Colors.white,
-        flexibleSpace: const DecoratedBox(decoration: BoxDecoration(gradient: kGradient)),
-        title: const Text('Предложения водителей',
+        flexibleSpace: const AppBarOrnament(),
+        title: Text('Предложения водителей',
             style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit_outlined),
+            icon: Icon(Icons.edit_outlined),
             tooltip: 'Редактировать заявку',
             onPressed: _openEdit,
           ),
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
+            icon: Icon(Icons.refresh_rounded),
             onPressed: _loadOffers,
           ),
         ],
@@ -1114,11 +1079,11 @@ class _OffersScreenState extends State<_OffersScreen> {
 
         // ── Шапка с деталями заявки ──
         Container(
-          color: kCard,
+          color: context.cardC,
           padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(widget.routeName,
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: kText)),
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: context.textC)),
             const SizedBox(height: 8),
             Wrap(spacing: 16, runSpacing: 6, children: [
               if (date != null)
@@ -1133,31 +1098,33 @@ class _OffersScreenState extends State<_OffersScreen> {
           ]),
         ),
 
-        const Divider(height: 1, color: kBg),
+        Divider(height: 1, color: context.bgC),
 
         // ── Список офферов ──
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator(color: kTeal))
-              : _offers.isEmpty
-                  ? _emptyState()
-                  : RefreshIndicator(
-                      color: kTeal,
-                      onRefresh: _loadOffers,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _offers.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (_, i) => _OfferCard(
-                          offer: _offers[i],
-                          seatsNeeded: widget.request['seats_needed'] ?? 1,
-                          isAccepting: _accepting == _offers[i]['id'],
-                          isDeclining: _declining == _offers[i]['id'],
-                          onAccept: () => _accept(_offers[i]['id']),
-                          onDecline: () => _decline(_offers[i]['id']),
+              : RefreshIndicator(
+                  color: kTeal,
+                  onRefresh: _loadOffers,
+                  child: _error != null
+                      ? ListView(children: [_errorState(_error!)])
+                      : _offers.isEmpty
+                      ? ListView(children: [_emptyState()])
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _offers.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (_, i) => _OfferCard(
+                            offer: _offers[i],
+                            seatsNeeded: widget.request['seats_needed'] ?? 1,
+                            isAccepting: _accepting == _offers[i]['id'],
+                            isDeclining: _declining == _offers[i]['id'],
+                            onAccept: () => _accept(_offers[i]['id']),
+                            onDecline: () => _decline(_offers[i]['id']),
+                          ),
                         ),
-                      ),
-                    ),
+                ),
         ),
       ]),
     );
@@ -1166,26 +1133,52 @@ class _OffersScreenState extends State<_OffersScreen> {
   Widget _tag(IconData icon, String text) => Row(mainAxisSize: MainAxisSize.min, children: [
     Icon(icon, size: 14, color: kTeal),
     const SizedBox(width: 4),
-    Text(text, style: const TextStyle(color: kText, fontSize: 13)),
+    Text(text, style: TextStyle(color: context.textC, fontSize: 13)),
   ]);
+
+  Widget _errorState(String msg) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(Icons.error_outline_rounded, size: 56, color: Colors.red[300]),
+        const SizedBox(height: 16),
+        Text('Не удалось загрузить',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: context.textC)),
+        const SizedBox(height: 8),
+        Text(msg, style: TextStyle(color: context.subC, fontSize: 13), textAlign: TextAlign.center),
+        const SizedBox(height: 24),
+        GestureDetector(
+          onTap: _loadOffers,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
+            decoration: BoxDecoration(
+              gradient: kGradient,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text('Повторить', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+        ),
+      ]),
+    ),
+  );
 
   Widget _emptyState() => Center(
     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       Container(
         width: 80, height: 80,
         decoration: BoxDecoration(
-          color: kBg,
+          color: context.bgC,
           shape: BoxShape.circle,
           border: Border.all(color: const Color(0xFFDDE3F0), width: 2),
         ),
-        child: const Icon(Icons.hourglass_empty_rounded, size: 40, color: kSubtext),
+        child: Icon(Icons.hourglass_empty_rounded, size: 40, color: context.subC),
       ),
       const SizedBox(height: 20),
-      const Text('Ждём водителей',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kText)),
+      Text('Ждём водителей',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.textC)),
       const SizedBox(height: 8),
-      const Text('Водители видят вашу заявку и скоро откликнутся',
-          style: TextStyle(color: kSubtext, fontSize: 13),
+      Text('Водители видят вашу заявку и скоро откликнутся',
+          style: TextStyle(color: context.subC, fontSize: 13),
           textAlign: TextAlign.center),
       const SizedBox(height: 24),
       GestureDetector(
@@ -1199,7 +1192,7 @@ class _OffersScreenState extends State<_OffersScreen> {
               BoxShadow(color: kNavy.withOpacity(0.25), blurRadius: 10, offset: const Offset(0, 4)),
             ],
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
@@ -1241,7 +1234,7 @@ class _OfferCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: kCard,
+        color: context.cardC,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFDDE3F0)),
         boxShadow: [
@@ -1258,15 +1251,16 @@ class _OfferCard extends StatelessWidget {
             decoration: const BoxDecoration(gradient: kGradient, shape: BoxShape.circle),
             child: Center(
               child: Text(
-                (offer['driver_name'] as String? ?? '?')[0].toUpperCase(),
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                ((offer['driver_name'] as String?)?.trim().isNotEmpty == true
+                    ? (offer['driver_name'] as String).trim()[0] : '?').toUpperCase(),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
               ),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(offer['driver_name'] ?? '—',
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: kText)),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: context.textC)),
             const SizedBox(height: 2),
             Row(children: [
               if (offer['driver_avg_rating'] != null) ...[
@@ -1283,10 +1277,10 @@ class _OfferCard extends StatelessWidget {
           // Цена за всё
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text('$totalPrice ₸',
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kNavy)),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kNavy)),
             if (seatsNeeded > 1)
               Text('$pricePerSeat ₸/место',
-                  style: const TextStyle(color: kSubtext, fontSize: 11)),
+                  style: TextStyle(color: context.subC, fontSize: 11)),
           ]),
         ]),
 
@@ -1296,12 +1290,12 @@ class _OfferCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: kBg,
+              color: context.bgC,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFDDE3F0)),
             ),
             child: Row(children: [
-              const Icon(Icons.directions_car_outlined, size: 16, color: kTeal),
+              Icon(Icons.directions_car_outlined, size: 16, color: kTeal),
               const SizedBox(width: 8),
               Expanded(child: Text(
                 [
@@ -1310,7 +1304,7 @@ class _OfferCard extends StatelessWidget {
                   if (offer['car_year'] != null) '${offer['car_year']}',
                   if (offer['car_color'] != null) offer['car_color'],
                 ].join(' '),
-                style: const TextStyle(fontSize: 13, color: kText, fontWeight: FontWeight.w500),
+                style: TextStyle(fontSize: 13, color: context.textC, fontWeight: FontWeight.w500),
               )),
               if (offer['car_number'] != null)
                 Container(
@@ -1320,7 +1314,7 @@ class _OfferCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(offer['car_number'],
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1, color: Colors.white,
                       )),
                 ),
@@ -1330,21 +1324,21 @@ class _OfferCard extends StatelessWidget {
 
         if (depTime != null) ...[
           const SizedBox(height: 12),
-          const Divider(height: 1, color: kBg),
+          Divider(height: 1, color: context.bgC),
           const SizedBox(height: 10),
           Row(children: [
-            const Icon(Icons.access_time_outlined, size: 15, color: kSubtext),
+            Icon(Icons.access_time_outlined, size: 15, color: context.subC),
             const SizedBox(width: 6),
             Text(
               'Отправление: ${depTime.day.toString().padLeft(2,'0')}.${depTime.month.toString().padLeft(2,'0')}  '
               '${depTime.hour.toString().padLeft(2,'0')}:${depTime.minute.toString().padLeft(2,'0')}',
-              style: const TextStyle(color: kSubtext, fontSize: 13),
+              style: TextStyle(color: context.subC, fontSize: 13),
             ),
             const Spacer(),
-            const Icon(Icons.event_seat_outlined, size: 15, color: kSubtext),
+            Icon(Icons.event_seat_outlined, size: 15, color: context.subC),
             const SizedBox(width: 4),
             Text('${offer['seats_available'] ?? '?'} св.',
-                style: const TextStyle(color: kSubtext, fontSize: 13)),
+                style: TextStyle(color: context.subC, fontSize: 13)),
           ]),
         ],
 
@@ -1364,7 +1358,7 @@ class _OfferCard extends StatelessWidget {
               ),
               child: isDeclining
                   ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red[400]))
-                  : const Text('Отклонить', style: TextStyle(fontWeight: FontWeight.w600)),
+                  : Text('Отклонить', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
           ),
           const SizedBox(width: 10),
@@ -1387,7 +1381,7 @@ class _OfferCard extends StatelessWidget {
                   child: isAccepting
                       ? const SizedBox(width: 20, height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Принять водителя',
+                      : Text('Принять водителя',
                           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                 ),
               ),
@@ -1512,12 +1506,12 @@ class _BookingFormScreenState extends State<_BookingFormScreen> {
         ? DateTime.tryParse(widget.trip['departure_time']) : null;
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: context.bgC,
       appBar: AppBar(
         backgroundColor: kNavy,
         foregroundColor: Colors.white,
-        flexibleSpace: const DecoratedBox(decoration: BoxDecoration(gradient: kGradient)),
-        title: const Text('Бронирование', style: TextStyle(fontWeight: FontWeight.w800)),
+        flexibleSpace: const AppBarOrnament(),
+        title: Text('Бронирование', style: TextStyle(fontWeight: FontWeight.w800)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -1527,24 +1521,24 @@ class _BookingFormScreenState extends State<_BookingFormScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: kCard,
+              color: context.cardC,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xFFDDE3F0)),
               boxShadow: [BoxShadow(color: kNavy.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 3))],
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(widget.routeName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: kText)),
+              Text(widget.routeName, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: context.textC)),
               if (dep != null) ...[
                 const SizedBox(height: 6),
                 Text(
                   '${dep.day.toString().padLeft(2,'0')}.${dep.month.toString().padLeft(2,'0')}.${dep.year}  '
                   '${dep.hour.toString().padLeft(2,'0')}:${dep.minute.toString().padLeft(2,'0')}',
-                  style: const TextStyle(color: kSubtext),
+                  style: TextStyle(color: context.subC),
                 ),
               ],
               const SizedBox(height: 6),
               Text('${price.toStringAsFixed(0)} ₸ за место',
-                  style: const TextStyle(color: kTeal, fontWeight: FontWeight.w700, fontSize: 15)),
+                  style: TextStyle(color: kTeal, fontWeight: FontWeight.w700, fontSize: 15)),
             ]),
           ),
 
@@ -1553,24 +1547,24 @@ class _BookingFormScreenState extends State<_BookingFormScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: kCard,
+              color: context.cardC,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFDDE3F0)),
             ),
             child: Row(children: [
               IconButton(
                 onPressed: _seats > 1 ? () => setState(() => _seats--) : null,
-                icon: const Icon(Icons.remove_circle_outline),
+                icon: Icon(Icons.remove_circle_outline),
                 color: kNavy,
               ),
               Expanded(child: Column(children: [
-                Text('$_seats', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: kText)),
+                Text('$_seats', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: context.textC)),
                 Text('${(price * _seats).toStringAsFixed(0)} ₸ итого',
-                    style: const TextStyle(color: kTeal, fontWeight: FontWeight.w600)),
+                    style: TextStyle(color: kTeal, fontWeight: FontWeight.w600)),
               ])),
               IconButton(
                 onPressed: _seats < available ? () => setState(() => _seats++) : null,
-                icon: const Icon(Icons.add_circle_outline),
+                icon: Icon(Icons.add_circle_outline),
                 color: kNavy,
               ),
             ]),
@@ -1591,7 +1585,7 @@ class _BookingFormScreenState extends State<_BookingFormScreen> {
               const SizedBox(width: 8),
               IconButton(
                 onPressed: () => _removeExtraPickup(i),
-                icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                icon: Icon(Icons.remove_circle_outline, color: Colors.red),
               ),
             ]),
             const SizedBox(height: 6),
@@ -1601,8 +1595,8 @@ class _BookingFormScreenState extends State<_BookingFormScreen> {
           const SizedBox(height: 10),
           TextButton.icon(
             onPressed: _addExtraPickup,
-            icon: const Icon(Icons.add_location_alt_outlined),
-            label: const Text('Добавить адрес подачи'),
+            icon: Icon(Icons.add_location_alt_outlined),
+            label: Text('Добавить адрес подачи'),
             style: TextButton.styleFrom(
               foregroundColor: kTeal,
               padding: EdgeInsets.zero,
@@ -1622,7 +1616,7 @@ class _BookingFormScreenState extends State<_BookingFormScreen> {
               const SizedBox(width: 8),
               IconButton(
                 onPressed: () => _removeExtraDest(i),
-                icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                icon: Icon(Icons.remove_circle_outline, color: Colors.red),
               ),
             ]),
             const SizedBox(height: 6),
@@ -1631,8 +1625,8 @@ class _BookingFormScreenState extends State<_BookingFormScreen> {
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: _addExtraDest,
-            icon: const Icon(Icons.flag_circle_outlined),
-            label: const Text('Добавить точку назначения'),
+            icon: Icon(Icons.flag_circle_outlined),
+            label: Text('Добавить точку назначения'),
             style: TextButton.styleFrom(
               foregroundColor: kTeal,
               padding: EdgeInsets.zero,
@@ -1676,7 +1670,7 @@ class _BookingFormScreenState extends State<_BookingFormScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : Text(
                         'Забронировать · ${(price * _seats).toStringAsFixed(0)} ₸',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white, fontWeight: FontWeight.w700,
                           fontSize: 16, letterSpacing: 0.3,
                         ),
@@ -1692,7 +1686,7 @@ class _BookingFormScreenState extends State<_BookingFormScreen> {
 
   Widget _sectionTitle(String t) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child: Text(t, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+    child: Text(t, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
   );
 
   Widget _field(TextEditingController c, String hint, IconData icon,
@@ -1808,15 +1802,15 @@ class _DateTimePickerState extends State<_DateTimePicker> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: kCard,
+        color: context.cardC,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFDDE3F0)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
         // ── ДАТА ──
-        const Text('Дата', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-            letterSpacing: 0.6, color: kSubtext)),
+        Text('Дата', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+            letterSpacing: 0.6, color: context.subC)),
         const SizedBox(height: 8),
         Row(children: [
           _Spinner(
@@ -1851,7 +1845,7 @@ class _DateTimePickerState extends State<_DateTimePicker> {
 
         // ── ВРЕМЯ ──
         Text('Время', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-            letterSpacing: 0.6, color: kSubtext)),
+            letterSpacing: 0.6, color: context.subC)),
         const SizedBox(height: 8),
         Row(children: [
           _Spinner(
@@ -1863,8 +1857,8 @@ class _DateTimePickerState extends State<_DateTimePicker> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 18),
-            child: Text(':', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700,
-                color: kSubtext)),
+            child: Text(':', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700,
+                color: context.subC)),
           ),
           _Spinner(
             label: 'ММ', ctrl: _minCtrl, width: 64,
@@ -2053,13 +2047,13 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
-        title: const Text('Отменить заявку?'),
-        content: const Text('Заявка будет отменена и удалена из активных.'),
+        title: Text('Отменить заявку?'),
+        content: Text('Заявка будет отменена и удалена из активных.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Нет')),
+          TextButton(onPressed: () => Navigator.pop(d, false), child: Text('Нет')),
           TextButton(
             onPressed: () => Navigator.pop(d, true),
-            child: const Text('Да, отменить', style: TextStyle(color: Colors.red)),
+            child: Text('Да, отменить', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -2152,13 +2146,13 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
       prefixIcon: Icon(icon),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
       filled: true,
-      fillColor: Colors.white,
+      fillColor: context.cardC,
     ),
   );
 
   Widget _tapField({required IconData icon, required String text, required bool filled, required VoidCallback onTap}) {
     return Material(
-      color: kCard,
+      color: context.cardC,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -2189,17 +2183,17 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: context.bgC,
       appBar: AppBar(
         backgroundColor: kNavy,
         foregroundColor: Colors.white,
-        flexibleSpace: const DecoratedBox(decoration: BoxDecoration(gradient: kGradient)),
-        title: const Text('Изменить заявку', style: TextStyle(fontWeight: FontWeight.w800)),
+        flexibleSpace: const AppBarOrnament(),
+        title: Text('Изменить заявку', style: TextStyle(fontWeight: FontWeight.w800)),
         elevation: 0,
         actions: [
           TextButton(
             onPressed: _cancel,
-            child: const Text('Отменить заявку', style: TextStyle(color: Colors.white70, fontSize: 13)),
+            child: Text('Отменить заявку', style: TextStyle(color: Colors.white70, fontSize: 13)),
           ),
         ],
       ),
@@ -2212,15 +2206,15 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             decoration: BoxDecoration(
-              color: kCard,
+              color: context.cardC,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFDDE3F0)),
             ),
             child: Row(children: [
-              const Icon(Icons.route_outlined, color: kTeal),
+              Icon(Icons.route_outlined, color: kTeal),
               const SizedBox(width: 12),
               Text(widget.routeName,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: kText)),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textC)),
             ]),
           ),
 
@@ -2255,7 +2249,7 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
                   _extraPairs[i].dispose();
                   _extraPairs.removeAt(i);
                 }),
-                icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                icon: Icon(Icons.remove_circle_outline, color: Colors.red),
               ),
             ]),
             const SizedBox(height: 6),
@@ -2269,8 +2263,8 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: () => setState(() => _extraPairs.add(_AddrPair())),
-            icon: const Icon(Icons.add_location_alt_outlined),
-            label: const Text('Добавить адрес подачи'),
+            icon: Icon(Icons.add_location_alt_outlined),
+            label: Text('Добавить адрес подачи'),
             style: TextButton.styleFrom(padding: EdgeInsets.zero),
           ),
 
@@ -2294,7 +2288,7 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
                   _extraDestPairs[i].dispose();
                   _extraDestPairs.removeAt(i);
                 }),
-                icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                icon: Icon(Icons.remove_circle_outline, color: Colors.red),
               ),
             ]),
             const SizedBox(height: 6),
@@ -2308,8 +2302,8 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: () => setState(() => _extraDestPairs.add(_AddrPair())),
-            icon: const Icon(Icons.flag_circle_outlined),
-            label: const Text('Добавить точку назначения'),
+            icon: Icon(Icons.flag_circle_outlined),
+            label: Text('Добавить точку назначения'),
             style: TextButton.styleFrom(padding: EdgeInsets.zero),
           ),
 
@@ -2322,7 +2316,7 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
           _section('Способ оплаты'),
           Container(
             decoration: BoxDecoration(
-              color: kCard,
+              color: context.cardC,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFDDE3F0)),
             ),
@@ -2362,7 +2356,7 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
           _section('Для кого заказ'),
           Container(
             decoration: BoxDecoration(
-              color: kCard,
+              color: context.cardC,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFDDE3F0)),
             ),
@@ -2370,14 +2364,14 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
               RadioListTile<bool>(
                 value: false, groupValue: _forOther,
                 onChanged: (v) => setState(() => _forOther = false),
-                title: const Text('Для себя'), activeColor: kTeal,
+                title: Text('Для себя'), activeColor: kTeal,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               ),
               const Divider(height: 1, indent: 16),
               RadioListTile<bool>(
                 value: true, groupValue: _forOther,
                 onChanged: (v) => setState(() => _forOther = true),
-                title: const Text('Для другого человека'), activeColor: kTeal,
+                title: Text('Для другого человека'), activeColor: kTeal,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               ),
             ]),
@@ -2417,7 +2411,7 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
                 child: _loading
                     ? const SizedBox(width: 24, height: 24,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                    : const Text('Сохранить изменения', style: TextStyle(
+                    : Text('Сохранить изменения', style: TextStyle(
                         color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.3,
                       )),
               ),
@@ -2578,7 +2572,7 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
         prefixIcon: Icon(icon),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: context.cardC,
       ),
     );
   }
@@ -2586,7 +2580,7 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
   // Поле-кнопка (дата/время)
   Widget _tapField({required IconData icon, required String text, required bool filled, required VoidCallback onTap}) {
     return Material(
-      color: kCard,
+      color: context.cardC,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -2621,12 +2615,12 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
     final canSubmit = _selectedRoute != null && _selectedDate != null && _selectedTime != null && !_loading;
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: context.bgC,
       appBar: AppBar(
         backgroundColor: kNavy,
         foregroundColor: Colors.white,
-        flexibleSpace: const DecoratedBox(decoration: BoxDecoration(gradient: kGradient)),
-        title: const Text('Новая заявка', style: TextStyle(fontWeight: FontWeight.w800)),
+        flexibleSpace: const AppBarOrnament(),
+        title: Text('Новая заявка', style: TextStyle(fontWeight: FontWeight.w800)),
         elevation: 0,
       ),
       body: ListView(
@@ -2637,7 +2631,7 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
           _section('Маршрут'),
           Container(
             decoration: BoxDecoration(
-              color: kCard,
+              color: context.cardC,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFDDE3F0)),
             ),
@@ -2657,7 +2651,7 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
                 child: Text('${r['city_from']} → ${r['city_to']}'),
               )).toList(),
               onChanged: (v) => setState(() => _selectedRoute = v),
-              hint: const Text('Выберите маршрут', style: TextStyle(color: kSubtext)),
+              hint: Text('Выберите маршрут', style: TextStyle(color: context.subC)),
             ),
           ),
 
@@ -2701,7 +2695,7 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
                   _extraPairs[i].dispose();
                   _extraPairs.removeAt(i);
                 }),
-                icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                icon: Icon(Icons.remove_circle_outline, color: Colors.red),
               ),
             ]),
             const SizedBox(height: 6),
@@ -2715,8 +2709,8 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: () => setState(() => _extraPairs.add(_AddrPair())),
-            icon: const Icon(Icons.add_location_alt_outlined),
-            label: const Text('Добавить адрес подачи'),
+            icon: Icon(Icons.add_location_alt_outlined),
+            label: Text('Добавить адрес подачи'),
             style: TextButton.styleFrom(padding: EdgeInsets.zero),
           ),
 
@@ -2748,7 +2742,7 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
                   _extraDestPairs[i].dispose();
                   _extraDestPairs.removeAt(i);
                 }),
-                icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                icon: Icon(Icons.remove_circle_outline, color: Colors.red),
               ),
             ]),
             const SizedBox(height: 6),
@@ -2762,8 +2756,8 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: () => setState(() => _extraDestPairs.add(_AddrPair())),
-            icon: const Icon(Icons.flag_circle_outlined),
-            label: const Text('Добавить точку назначения'),
+            icon: Icon(Icons.flag_circle_outlined),
+            label: Text('Добавить точку назначения'),
             style: TextButton.styleFrom(padding: EdgeInsets.zero),
           ),
 
@@ -2780,7 +2774,7 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
           _section('Способ оплаты'),
           Container(
             decoration: BoxDecoration(
-              color: kCard,
+              color: context.cardC,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFDDE3F0)),
             ),
@@ -2824,7 +2818,7 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
           _section('Для кого заказ'),
           Container(
             decoration: BoxDecoration(
-              color: kCard,
+              color: context.cardC,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFDDE3F0)),
             ),
@@ -2833,7 +2827,7 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
                 value: false,
                 groupValue: _forOther,
                 onChanged: (v) => setState(() => _forOther = false),
-                title: const Text('Для себя'),
+                title: Text('Для себя'),
                 activeColor: kTeal,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               ),
@@ -2842,7 +2836,7 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
                 value: true,
                 groupValue: _forOther,
                 onChanged: (v) => setState(() => _forOther = true),
-                title: const Text('Для другого человека'),
+                title: Text('Для другого человека'),
                 activeColor: kTeal,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               ),
@@ -2897,7 +2891,7 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
                 child: _loading
                     ? const SizedBox(width: 24, height: 24,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                    : const Text('Отправить заявку', style: TextStyle(
+                    : Text('Отправить заявку', style: TextStyle(
                         color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.3,
                       )),
               ),
@@ -2954,14 +2948,14 @@ class _PoputkaTabState extends State<_PoputkaTab> {
     return Column(
       children: [
         Container(
-          color: kCard,
+          color: context.cardC,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Row(
             children: [
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: kBg,
+                    color: context.bgC,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: const Color(0xFFDDE3F0)),
                   ),
@@ -2980,7 +2974,7 @@ class _PoputkaTabState extends State<_PoputkaTab> {
                       child: Text('${r['city_from']} → ${r['city_to']}'),
                     )).toList(),
                     onChanged: (v) => setState(() { _selectedRoute = v; _searched = false; _trips = []; }),
-                    hint: const Text('Выберите маршрут', style: TextStyle(color: kSubtext)),
+                    hint: Text('Выберите маршрут', style: TextStyle(color: context.subC)),
                   ),
                 ),
               ),
@@ -3002,7 +2996,7 @@ class _PoputkaTabState extends State<_PoputkaTab> {
                     child: _loading
                         ? const SizedBox(width: 20, height: 20,
                             child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('Найти',
+                        : Text('Найти',
                             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
                   ),
                 ),
@@ -3010,7 +3004,7 @@ class _PoputkaTabState extends State<_PoputkaTab> {
             ],
           ),
         ),
-        const Divider(height: 1, color: kBg),
+        Divider(height: 1, color: context.bgC),
         Expanded(
           child: !_searched
               ? Center(
@@ -3020,18 +3014,18 @@ class _PoputkaTabState extends State<_PoputkaTab> {
                       Container(
                         width: 80, height: 80,
                         decoration: BoxDecoration(
-                          color: kBg,
+                          color: context.bgC,
                           shape: BoxShape.circle,
                           border: Border.all(color: const Color(0xFFDDE3F0), width: 2),
                         ),
-                        child: const Icon(Icons.search_rounded, size: 40, color: kSubtext),
+                        child: Icon(Icons.search_rounded, size: 40, color: context.subC),
                       ),
                       const SizedBox(height: 20),
-                      const Text('Выберите маршрут',
-                          style: TextStyle(fontSize: 17, color: kText, fontWeight: FontWeight.w700)),
+                      Text('Выберите маршрут',
+                          style: TextStyle(fontSize: 17, color: context.textC, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 8),
-                      const Text('Найдём доступные поездки',
-                          style: TextStyle(color: kSubtext, fontSize: 13)),
+                      Text('Найдём доступные поездки',
+                          style: TextStyle(color: context.subC, fontSize: 13)),
                     ],
                   ),
                 )
@@ -3043,18 +3037,18 @@ class _PoputkaTabState extends State<_PoputkaTab> {
                           Container(
                             width: 80, height: 80,
                             decoration: BoxDecoration(
-                              color: kBg,
+                              color: context.bgC,
                               shape: BoxShape.circle,
                               border: Border.all(color: const Color(0xFFDDE3F0), width: 2),
                             ),
-                            child: const Icon(Icons.search_off_rounded, size: 40, color: kSubtext),
+                            child: Icon(Icons.search_off_rounded, size: 40, color: context.subC),
                           ),
                           const SizedBox(height: 20),
-                          const Text('Поездок по этому маршруту нет',
-                              style: TextStyle(color: kText, fontWeight: FontWeight.w700, fontSize: 17)),
+                          Text('Поездок по этому маршруту нет',
+                              style: TextStyle(color: context.textC, fontWeight: FontWeight.w700, fontSize: 17)),
                           const SizedBox(height: 8),
-                          const Text('Создайте заявку во вкладке "Поездки"',
-                              style: TextStyle(color: kSubtext, fontSize: 13)),
+                          Text('Создайте заявку во вкладке "Поездки"',
+                              style: TextStyle(color: context.subC, fontSize: 13)),
                         ],
                       ),
                     )
@@ -3104,7 +3098,7 @@ class _TripCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: kCard,
+        color: context.cardC,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFDDE3F0)),
         boxShadow: [
@@ -3119,33 +3113,33 @@ class _TripCard extends StatelessWidget {
             Container(
               width: 42, height: 42,
               decoration: const BoxDecoration(gradient: kGradient, shape: BoxShape.circle),
-              child: const Icon(Icons.directions_car_rounded, color: Colors.white, size: 20),
+              child: Icon(Icons.directions_car_rounded, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(routeName, style: const TextStyle(
-                  fontWeight: FontWeight.w700, fontSize: 15, color: kText,
+                Text(routeName, style: TextStyle(
+                  fontWeight: FontWeight.w700, fontSize: 15, color: context.textC,
                 )),
                 if (date != null)
                   Text(
                     '${date.day}.${date.month}.${date.year} в ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
-                    style: const TextStyle(color: kSubtext, fontSize: 13),
+                    style: TextStyle(color: context.subC, fontSize: 13),
                   ),
               ]),
             ),
             const SizedBox(width: 8),
             Text('${trip['price_per_seat']} ₸',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w800, fontSize: 17, color: kNavy,
                 )),
           ]),
           const SizedBox(height: 12),
           Row(children: [
-            const Icon(Icons.event_seat_outlined, size: 15, color: kSubtext),
+            Icon(Icons.event_seat_outlined, size: 15, color: context.subC),
             const SizedBox(width: 4),
             Text('${trip['seats_available']} мест свободно',
-                style: const TextStyle(color: kSubtext, fontSize: 13)),
+                style: TextStyle(color: context.subC, fontSize: 13)),
             const Spacer(),
             GestureDetector(
               onTap: () => _openBookingForm(context),
@@ -3158,7 +3152,7 @@ class _TripCard extends StatelessWidget {
                     BoxShadow(color: kNavy.withOpacity(0.25), blurRadius: 6, offset: const Offset(0, 3)),
                   ],
                 ),
-                child: const Text('Забронировать',
+                child: Text('Забронировать',
                     style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
               ),
             ),

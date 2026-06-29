@@ -1,11 +1,11 @@
 {
-    "name": "zholaushy_passenger",
-    "short_name": "zholaushy_passenger",
+    "name": "ZHOLAUSHY",
+    "short_name": "ZHOLAUSHY",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0D1F6E",
+    "theme_color": "#0D1F6E",
+    "description": "Межгородские поездки · Актобе",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

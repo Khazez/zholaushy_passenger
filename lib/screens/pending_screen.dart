@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import '../config.dart';
+import '../theme.dart';
+import '../app_state.dart';
 
 class PendingScreen extends StatefulWidget {
   const PendingScreen({super.key});
@@ -56,18 +58,19 @@ class _PendingScreenState extends State<PendingScreen> {
   void _logout() {
     html.window.localStorage.remove('token');
     html.window.localStorage.remove('mode');
+    html.window.localStorage['theme'] = 'light';
+    AppState.themeNotifier.value = ThemeMode.light;
     context.go('/login');
   }
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
     final isRejected = _rejectionReason != null && _rejectionReason!.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: _checking && !_loaded
-          ? const Center(child: CircularProgressIndicator())
+      backgroundColor: context.bgC,
+      body: BodyOrnament(child: _checking && !_loaded
+          ? const Center(child: CircularProgressIndicator(color: kNavy))
           : Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -94,7 +97,7 @@ class _PendingScreenState extends State<PendingScreen> {
 
                       Text(
                         isRejected ? 'Заявка отклонена' : 'Ожидает проверки',
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: context.textC),
                         textAlign: TextAlign.center,
                       ),
 
@@ -121,13 +124,13 @@ class _PendingScreenState extends State<PendingScreen> {
                         const SizedBox(height: 20),
                         Text(
                           'Исправьте данные автомобиля и отправьте заявку повторно.',
-                          style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                          style: TextStyle(color: context.subC, fontSize: 14),
                           textAlign: TextAlign.center,
                         ),
                       ] else ...[
                         Text(
                           'Ваша заявка передана администратору.\nОбычно проверка занимает несколько часов.',
-                          style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.5),
+                          style: TextStyle(color: context.subC, fontSize: 14, height: 1.5),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 8),
@@ -141,26 +144,46 @@ class _PendingScreenState extends State<PendingScreen> {
                       const SizedBox(height: 32),
 
                       if (isRejected)
-                        ElevatedButton.icon(
-                          onPressed: () => context.go('/car-info?update=true'),
-                          icon: const Icon(Icons.edit_outlined),
-                          label: const Text('Изменить данные машины'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primary,
-                            foregroundColor: Colors.white,
+                        GestureDetector(
+                          onTap: () => context.go('/car-info?update=true'),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            decoration: BoxDecoration(
+                              gradient: kGradient,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+                              SizedBox(width: 8),
+                              Text('Изменить данные машины',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                            ]),
                           ),
                         )
                       else
-                        ElevatedButton.icon(
-                          onPressed: _checking ? null : _check,
-                          icon: _checking
-                              ? const SizedBox(width: 18, height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.refresh),
-                          label: const Text('Обновить статус'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primary,
-                            foregroundColor: Colors.white,
+                        GestureDetector(
+                          onTap: _checking ? null : _check,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            decoration: BoxDecoration(
+                              gradient: _checking ? null : kGradient,
+                              color: _checking ? Colors.grey[300] : null,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Center(
+                              child: _checking
+                                  ? const SizedBox(width: 20, height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                  : const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                      Icon(Icons.refresh, color: Colors.white, size: 18),
+                                      SizedBox(width: 8),
+                                      Text('Обновить статус',
+                                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                                    ]),
+                            ),
                           ),
                         ),
 
@@ -168,13 +191,13 @@ class _PendingScreenState extends State<PendingScreen> {
 
                       TextButton(
                         onPressed: _logout,
-                        child: Text('Выйти', style: TextStyle(color: Colors.grey[500])),
+                        child: Text('Выйти', style: TextStyle(color: context.subC)),
                       ),
                     ],
                   ),
                 ),
               ),
             ),
-    );
+    ));
   }
 }

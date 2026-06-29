@@ -6,6 +6,8 @@ import 'dart:html' as html;
 import 'driver_profile_screen.dart';
 import 'info_screens.dart';
 import '../config.dart';
+import '../theme.dart';
+import '../app_state.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -23,13 +25,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
   void _logout() {
     html.window.localStorage.remove('token');
     html.window.localStorage.remove('mode');
+    html.window.localStorage['theme'] = 'light';
+    AppState.themeNotifier.value = ThemeMode.light;
     context.go('/login');
   }
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkVerification());
   }
 
@@ -66,16 +70,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         .map((p) => p[0].toUpperCase()).join();
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: context.bgC,
       appBar: AppBar(
-        backgroundColor: primary,
+        backgroundColor: kNavy,
         foregroundColor: Colors.white,
+        flexibleSpace: const AppBarOrnament(),
         title: Row(children: [
           Container(
             width: 34, height: 34,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              gradient: kGradientVertical,
               shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.5),
             ),
             child: Center(
               child: Text(initials, style: const TextStyle(
@@ -86,7 +92,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Жолаушы', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const Text('ZHOLAUSHY', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 2)),
               Text(name, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.8))),
             ]),
           ),
@@ -94,7 +100,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
-            color: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             onSelected: (val) {
               switch (val) {
@@ -131,20 +136,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white60,
           tabs: const [
-            Tab(icon: Icon(Icons.list_alt_outlined),      text: 'Заявки'),
-            Tab(icon: Icon(Icons.directions_car_outlined), text: 'Мои поездки'),
-            Tab(icon: Icon(Icons.history_outlined),        text: 'Отклики'),
+            Tab(icon: Icon(Icons.list_alt_outlined),               text: 'Заявки'),
+            Tab(icon: Icon(Icons.directions_car_outlined),          text: 'Поездки'),
+            Tab(icon: Icon(Icons.history_outlined),                 text: 'Отклики'),
+            Tab(icon: Icon(Icons.account_balance_wallet_outlined),  text: 'Баланс'),
           ],
         ),
       ),
-      body: TabBarView(
+      body: BodyOrnament(child: TabBarView(
         controller: _tabController,
         children: [
           _RequestsTab(getToken: _getToken),
           _MyTripsTab(getToken: _getToken),
           _MyOffersTab(getToken: _getToken),
+          _BalanceTab(getToken: _getToken),
         ],
-      ),
+      )),
     );
   }
 }
@@ -327,7 +334,7 @@ class _PassengerRequestCardState extends State<_PassengerRequestCard> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Ваша цена за место'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Маршрут: ${_routeName()}',
+          Text('Заявка #${widget.request['id']} · ${_routeName()}',
               style: TextStyle(color: Colors.grey[600], fontSize: 13)),
           const SizedBox(height: 16),
           TextField(
@@ -530,22 +537,29 @@ class _PassengerRequestCardState extends State<_PassengerRequestCard> {
                 ),
               ],
               const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: (_offering || _alreadyOffered) ? null : _sendOffer,
-                  icon: _offering
-                      ? const SizedBox(width: 18, height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Icon(_alreadyOffered ? Icons.check_circle : Icons.send_outlined),
-                  label: Text(_alreadyOffered ? 'Отклик отправлен' : 'Откликнуться'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _alreadyOffered ? Colors.grey[400] : primary,
-                    foregroundColor: Colors.white,
-                    minimumSize: Size.zero,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              GestureDetector(
+                onTap: (_offering || _alreadyOffered) ? null : _sendOffer,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  decoration: BoxDecoration(
+                    gradient: _alreadyOffered || _offering ? null : kGradient,
+                    color: _alreadyOffered ? Colors.grey[400] : (_offering ? Colors.grey[300] : null),
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    if (_offering)
+                      const SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    else
+                      Icon(_alreadyOffered ? Icons.check_circle : Icons.send_outlined, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      _alreadyOffered ? 'Отклик отправлен' : 'Откликнуться',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                  ]),
                 ),
               ),
             ],
@@ -961,8 +975,6 @@ class _MyTripsTabState extends State<_MyTripsTab> {
   List<dynamic> _routes   = [];
   List<dynamic> _bookings = [];
   bool _loading = true;
-  final Set<int> _departedTrips = {};
-  final Set<int> _arrivedTrips  = {};
 
   @override
   void initState() {
@@ -1149,7 +1161,10 @@ class _MyTripsTabState extends State<_MyTripsTab> {
         '$kApiBase/trips/$tripId/departing',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
-      setState(() => _departedTrips.add(tripId));
+      setState(() {
+        final idx = _trips.indexWhere((t) => t['id'] == tripId);
+        if (idx != -1) _trips[idx] = {..._trips[idx], 'is_departed': true};
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: const Text('Пассажиры уведомлены о выезде'), backgroundColor: Colors.blue[700]),
@@ -1171,7 +1186,10 @@ class _MyTripsTabState extends State<_MyTripsTab> {
         '$kApiBase/trips/$tripId/arrived',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
-      setState(() => _arrivedTrips.add(tripId));
+      setState(() {
+        final idx = _trips.indexWhere((t) => t['id'] == tripId);
+        if (idx != -1) _trips[idx] = {..._trips[idx], 'is_arrived': true};
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Пассажиры уведомлены о прибытии'), backgroundColor: Colors.orange),
@@ -1237,18 +1255,25 @@ class _MyTripsTabState extends State<_MyTripsTab> {
     final primary = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await Navigator.push(context, MaterialPageRoute(
-            builder: (_) => _CreateTripScreen(getToken: widget.getToken, routes: _routes),
-          ));
-          _load();
-        },
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Новая поездка'),
+      backgroundColor: context.bgC,
+      floatingActionButton: Container(
+        decoration: const BoxDecoration(
+          gradient: kGradient,
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+        ),
+        child: FloatingActionButton.extended(
+          onPressed: () async {
+            await Navigator.push(context, MaterialPageRoute(
+              builder: (_) => _CreateTripScreen(getToken: widget.getToken, routes: _routes),
+            ));
+            _load();
+          },
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          icon: const Icon(Icons.add),
+          label: const Text('Новая поездка'),
+        ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -1307,8 +1332,8 @@ class _MyTripsTabState extends State<_MyTripsTab> {
                               const SizedBox(height: 12),
                               Builder(builder: (_) {
                                 final tripId   = t['id'] as int;
-                                final departed = _departedTrips.contains(tripId);
-                                final arrived  = _arrivedTrips.contains(tripId);
+                                final departed = t['is_departed'] == true;
+                                final arrived  = t['is_arrived'] == true;
                                 if (arrived) return const SizedBox.shrink();
                                 return SizedBox(
                                   width: double.infinity,
@@ -1657,9 +1682,10 @@ class _CreateTripScreenState extends State<_CreateTripScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: primary,
+        backgroundColor: kNavy,
         foregroundColor: Colors.white,
         title: const Text('Новая поездка', style: TextStyle(fontWeight: FontWeight.bold)),
+        flexibleSpace: const AppBarOrnament(),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -1737,16 +1763,25 @@ class _CreateTripScreenState extends State<_CreateTripScreen> {
           ]),
 
           const SizedBox(height: 32),
-          ElevatedButton(
-            onPressed: _saving ? null : _submit,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primary,
-              foregroundColor: Colors.white,
+          GestureDetector(
+            onTap: _saving ? null : _submit,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                gradient: _saving ? null : kGradient,
+                color: _saving ? Colors.grey[300] : null,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Center(
+                child: _saving
+                    ? const SizedBox(width: 22, height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Создать поездку',
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
             ),
-            child: _saving
-                ? const SizedBox(width: 22, height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Text('Создать поездку'),
           ),
         ]),
       ),
@@ -1773,6 +1808,205 @@ class _CreateTripScreenState extends State<_CreateTripScreen> {
           const SizedBox(width: 10),
           Text(text, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
         ]),
+      ),
+    );
+  }
+}
+
+// ─── ТАБ 4: БАЛАНС ВОДИТЕЛЯ ──────────────────────────────────────────────────
+
+class _BalanceTab extends StatefulWidget {
+  final String? Function() getToken;
+  const _BalanceTab({required this.getToken});
+
+  @override
+  State<_BalanceTab> createState() => _BalanceTabState();
+}
+
+class _BalanceTabState extends State<_BalanceTab> {
+  double _balance = 0;
+  int _offerPrice = 50;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() => _loading = true);
+    final token = widget.getToken();
+    if (token == null) { if (mounted) setState(() => _loading = false); return; }
+    try {
+      final res = await Dio().get(
+        '$kApiBase/drivers/balance',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      if (mounted) setState(() {
+        _balance    = (res.data['balance'] as num).toDouble();
+        _offerPrice = (res.data['offer_price'] as num).toInt();
+        _loading    = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showTopupDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(children: [
+          Icon(Icons.account_balance_wallet_outlined, color: kTeal),
+          SizedBox(width: 10),
+          Text('Пополнение баланса'),
+        ]),
+        content: const Text(
+          'Для пополнения баланса свяжитесь с администратором:\n\n'
+          '📞 Позвоните или напишите в поддержку — укажите сумму и ваш номер телефона.',
+          style: TextStyle(fontSize: 14, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Понятно', style: TextStyle(color: kNavy, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canSendOffer = _balance >= _offerPrice;
+
+    return RefreshIndicator(
+      color: kNavy,
+      onRefresh: _load,
+      child: _loading
+          ? const Center(child: CircularProgressIndicator(color: kNavy))
+          : ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+
+          // ── Карточка баланса ──
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: kGradient,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(color: kNavy.withOpacity(0.35), blurRadius: 20, offset: const Offset(0, 8))],
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Row(children: [
+                Icon(Icons.account_balance_wallet_outlined, color: Colors.white70, size: 18),
+                SizedBox(width: 8),
+                Text('Текущий баланс', style: TextStyle(color: Colors.white70, fontSize: 14)),
+              ]),
+              const SizedBox(height: 16),
+              Text(
+                '${_balance.toStringAsFixed(0)} ₸',
+                style: const TextStyle(color: Colors.white, fontSize: 42, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                canSendOffer
+                    ? 'Можно отправить ${(_balance / _offerPrice).floor()} откликов'
+                    : 'Недостаточно для отклика — пополните баланс',
+                style: TextStyle(
+                  color: canSendOffer ? Colors.white60 : Colors.orange[200],
+                  fontSize: 13,
+                ),
+              ),
+            ]),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Кнопка пополнить ──
+          GestureDetector(
+            onTap: _showTopupDialog,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              decoration: BoxDecoration(
+                gradient: kGradient,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.add_circle_outline, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Text('Пополнить баланс', style: TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15,
+                )),
+              ]),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Стоимость отклика ──
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: context.cardC,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: context.divC),
+            ),
+            child: Row(children: [
+              Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(color: context.iconBgC, borderRadius: BorderRadius.circular(11)),
+                child: Icon(Icons.touch_app_outlined, color: context.iconC, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Стоимость одного отклика', style: TextStyle(
+                  fontSize: 13, color: context.subC, fontWeight: FontWeight.w500,
+                )),
+                const SizedBox(height: 2),
+                Text('$_offerPrice ₸', style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w800, color: context.textC,
+                )),
+              ])),
+              if (!canSendOffer)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange[200]!),
+                  ),
+                  child: Text('Нет средств', style: TextStyle(
+                    color: Colors.orange[700], fontSize: 12, fontWeight: FontWeight.w600,
+                  )),
+                ),
+            ]),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Инфо-блок ──
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: kTeal.withOpacity(0.07),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: kTeal.withOpacity(0.18)),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.info_outline, color: kTeal, size: 18),
+              const SizedBox(width: 10),
+              Expanded(child: Text(
+                'За каждый отклик на заявку пассажира списывается $_offerPrice ₸. '
+                'Пополните баланс у администратора.',
+                style: const TextStyle(color: kTeal, fontSize: 13, height: 1.5),
+              )),
+            ]),
+          ),
+        ],
       ),
     );
   }

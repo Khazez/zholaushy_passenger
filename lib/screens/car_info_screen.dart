@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import '../config.dart';
+import '../theme.dart';
 
 class CarInfoScreen extends StatefulWidget {
   final bool isUpdate;
@@ -104,16 +105,15 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: context.bgC,
       appBar: widget.isUpdate
           ? AppBar(
-              backgroundColor: primary,
+              backgroundColor: kNavy,
               foregroundColor: Colors.white,
               title: const Text('Сменить автомобиль', style: TextStyle(fontWeight: FontWeight.bold)),
               elevation: 0,
+              flexibleSpace: const AppBarOrnament(),
             )
           : null,
       body: Center(
@@ -127,11 +127,14 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
                 Center(child: Column(children: [
                   Container(
                     width: 72, height: 72,
-                    decoration: BoxDecoration(color: primary, borderRadius: BorderRadius.circular(18)),
+                    decoration: BoxDecoration(
+                      gradient: kGradient,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
                     child: const Icon(Icons.directions_car_outlined, color: Colors.white, size: 40),
                   ),
                   const SizedBox(height: 14),
-                  const Text('Данные автомобиля', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text('Данные автомобиля', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: context.textC)),
                   const SizedBox(height: 6),
                   Text('Шаг 2 из 2 — укажите ваш автомобиль',
                       style: TextStyle(color: Colors.grey[500], fontSize: 13)),
@@ -139,7 +142,7 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
                 const SizedBox(height: 32),
               ],
 
-              _label('Марка'),
+              _label(context, 'Марка'),
               const SizedBox(height: 6),
               TextField(
                 controller: _brandCtrl,
@@ -149,7 +152,7 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
 
               const SizedBox(height: 14),
 
-              _label('Модель'),
+              _label(context, 'Модель'),
               const SizedBox(height: 6),
               TextField(
                 controller: _modelCtrl,
@@ -161,7 +164,7 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
 
               Row(children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  _label('Год выпуска'),
+                  _label(context, 'Год выпуска'),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _yearCtrl,
@@ -171,7 +174,7 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
                 ])),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  _label('Цвет'),
+                  _label(context, 'Цвет'),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _colorCtrl,
@@ -183,7 +186,7 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
 
               const SizedBox(height: 14),
 
-              _label('Госномер'),
+              _label(context, 'Госномер'),
               const SizedBox(height: 6),
               TextField(
                 controller: _numberCtrl,
@@ -210,20 +213,38 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
 
               const SizedBox(height: 28),
 
-              ElevatedButton(
-                onPressed: _loading ? null : _submit,
-                style: ElevatedButton.styleFrom(backgroundColor: primary, foregroundColor: Colors.white),
-                child: _loading
-                    ? const SizedBox(width: 22, height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Отправить на проверку'),
+              GestureDetector(
+                onTap: _loading ? null : _submit,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    gradient: _loading ? null : kGradient,
+                    color: _loading ? Colors.grey[300] : null,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: _loading
+                        ? const SizedBox(width: 22, height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text(
+                            'Отправить на проверку',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                  ),
+                ),
               ),
 
               if (!widget.isUpdate) ...[
                 const SizedBox(height: 12),
                 Center(child: TextButton(
                   onPressed: () => context.go('/login'),
-                  child: Text('← Назад', style: TextStyle(color: Colors.grey[600])),
+                  child: Text('← Назад', style: TextStyle(color: context.subC)),
                 )),
               ],
             ]),
@@ -233,6 +254,6 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
     );
   }
 
-  Widget _label(String text) =>
-      Text(text, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13));
+  Widget _label(BuildContext context, String text) =>
+      Text(text, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: context.textC));
 }

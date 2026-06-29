@@ -90,7 +90,9 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
-    return Scaffold(
+    return Theme(
+      data: buildAppTheme(),
+      child: Scaffold(
       body: Stack(
         children: [
 
@@ -272,6 +274,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                               hintText: 'Например: Алибек Сейткали',
                               hintStyle: const TextStyle(color: kSubtext),
                               prefixIcon: const Icon(Icons.person_rounded, color: kTeal, size: 22),
+                              filled: false,
                               border: InputBorder.none,
                               enabledBorder: InputBorder.none,
                               focusedBorder: InputBorder.none,
@@ -322,6 +325,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
             ),
           ),
         ],
+      ),
       ),
     );
   }
