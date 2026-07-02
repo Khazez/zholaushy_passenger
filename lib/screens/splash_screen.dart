@@ -220,17 +220,6 @@ class _SplashScreenState extends State<SplashScreen>
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'АКТОБЕ',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.55),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 4,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
                         Container(
                           width: 60, height: 1,
                           decoration: BoxDecoration(
