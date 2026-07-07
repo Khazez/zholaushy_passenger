@@ -126,6 +126,14 @@ zholaushy_passenger/lib/
     └── info_screens.dart          # Поддержка, Настройки, О приложении
 ```
 
+## Деплой (Railway)
+- **Публичный URL:** https://zholaushypassenger-production.up.railway.app/
+- Тот же Railway-проект: workspace `trustworthy-patience`, environment `production`, сервис `zholaushy_passenger`
+- `Dockerfile`: multi-stage — Flutter SDK ставится через `git clone --depth 1 -b stable https://github.com/flutter/flutter.git` (НЕ готовый образ `ghcr.io/cirruslabs/flutter` — там версии отстают от `pubspec.yaml` требования `^3.12.2` Dart SDK), раздача статики через `nginx:alpine`
+- Порт берётся из `$PORT` через nginx envsubst-темплейт (`nginx.conf.template` → `/etc/nginx/templates/default.conf.template`), т.к. Railway пробрасывает порт динамически
+- `API_BASE` передаётся как `--dart-define` через Docker build-arg (см. `lib/config.dart`), в Railway Variables: `API_BASE=https://taxi-production-8544.up.railway.app/api/v1`
+- OTP-логин для демо (нет реального SMS-шлюза): тестовые номера с фиксированным кодом `0000` — `+77009998877` (пассажир), `+77001112233`/`+77001112244` (верифицированные тестовые водители)
+
 ## Что НЕ сделано (после МВП)
 - [ ] WebSocket — real-time офферы (сейчас поллинг каждые N секунд)
 - [ ] Пополнение баланса через интерфейс (сейчас только через admin API POST /drivers/balance/topup)
