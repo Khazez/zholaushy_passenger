@@ -1,4 +1,4 @@
-FROM ghcr.io/cirruslabs/flutter:stable AS build
+FROM ghcr.io/cirruslabs/flutter:latest AS build
 WORKDIR /app
 COPY . .
 ARG API_BASE
