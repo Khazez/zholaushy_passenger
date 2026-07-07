@@ -1,4 +1,13 @@
-FROM ghcr.io/cirruslabs/flutter:3.44.5 AS build
+FROM debian:bookworm-slim AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl git unzip xz-utils zip ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 -b stable https://github.com/flutter/flutter.git /flutter
+ENV PATH="/flutter/bin:${PATH}"
+RUN flutter precache --web
+
 WORKDIR /app
 COPY . .
 ARG API_BASE
