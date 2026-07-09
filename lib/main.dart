@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -18,7 +19,7 @@ import 'screens/car_info_screen.dart';
 import 'screens/pending_screen.dart';
 import 'screens/active_trip_screen.dart';
 
-const _firebaseOptions = FirebaseOptions(
+const _firebaseOptionsWeb = FirebaseOptions(
   apiKey: 'AIzaSyC5k6vD8moo1cF8ewdF3H-RLx8tslz9a5c',
   appId: '1:1054390633030:web:76ec102fd5b22f0d2a0047',
   messagingSenderId: '1054390633030',
@@ -26,6 +27,20 @@ const _firebaseOptions = FirebaseOptions(
   authDomain: 'taxi-b163c.firebaseapp.com',
   storageBucket: 'taxi-b163c.firebasestorage.app',
 );
+
+const _firebaseOptionsIOS = FirebaseOptions(
+  apiKey: 'AIzaSyCQZR_E2IW-X2c9C9KLE23pBW_-5l7oTec',
+  appId: '1:1054390633030:ios:143b28d92051701b2a0047',
+  messagingSenderId: '1054390633030',
+  projectId: 'taxi-b163c',
+  storageBucket: 'taxi-b163c.firebasestorage.app',
+  iosBundleId: 'kz.zholaushy.zholaushyPassenger',
+);
+
+FirebaseOptions get _firebaseOptions {
+  if (defaultTargetPlatform == TargetPlatform.iOS) return _firebaseOptionsIOS;
+  return _firebaseOptionsWeb;
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
