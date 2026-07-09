@@ -2,8 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import '../local_store.dart';
 import '../fcm_service.dart';
 import '../config.dart';
 import '../theme.dart';
@@ -71,9 +70,9 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
         },
       );
       final token = res.data['access_token'] as String;
-      html.window.localStorage['token'] = token;
-      html.window.localStorage['mode']  = widget.mode;
-      html.window.localStorage['name']  = name;
+      LocalStore.setString('token', token);
+      LocalStore.setString('mode', widget.mode);
+      LocalStore.setString('name', name);
       registerFcmToken(token);
       if (mounted) context.go(_isDriver ? '/car-info' : '/home');
     } on DioException catch (e) {

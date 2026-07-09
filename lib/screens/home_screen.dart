@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import '../local_store.dart';
+import '../url_helper.dart';
 import 'profile_screen.dart';
 import 'info_screens.dart';
 import '../config.dart';
@@ -12,7 +12,7 @@ import '../app_state.dart';
 // Кнопки "Позвонить" и "WhatsApp" для номера телефона
 Widget _phoneButtons(String phone, Color primary, {bool compact = false}) {
   final btn = OutlinedButton.icon(
-    onPressed: () => html.window.open('tel:$phone', '_self'),
+    onPressed: () => openUrl('tel:$phone'),
     icon: Icon(Icons.phone_outlined, size: compact ? 14 : 16),
     label: Text('Позвонить', style: TextStyle(fontSize: compact ? 12 : 13)),
     style: OutlinedButton.styleFrom(
@@ -74,12 +74,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     super.dispose();
   }
 
-  String? _getToken() => html.window.localStorage['token'];
+  String? _getToken() => LocalStore.getString('token');
 
   void _logout() {
-    html.window.localStorage.remove('token');
-    html.window.localStorage.remove('mode');
-    html.window.localStorage['theme'] = 'light';
+    LocalStore.remove('token');
+    LocalStore.remove('mode');
+    LocalStore.setString('theme', 'light');
     AppState.themeNotifier.value = ThemeMode.light;
     context.go('/login');
   }
@@ -220,7 +220,7 @@ class _TripsTabState extends State<_TripsTab> {
       ).timeout(const Duration(seconds: 6));
       final data = res.data;
       final all = data is List ? data : (data['data'] ?? []);
-      final ratedIds = (html.window.localStorage['rated_trips'] ?? '')
+      final ratedIds = (LocalStore.getString('rated_trips') ?? '')
           .split(',').where((s) => s.isNotEmpty)
           .map(int.tryParse).whereType<int>().toSet();
       _requests = all.where((r) {
@@ -419,9 +419,9 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
   void _markRated() {
     final tripId = widget.request['trip_id'] as int?;
     if (tripId != null) {
-      final existing = html.window.localStorage['rated_trips'] ?? '';
-      html.window.localStorage['rated_trips'] =
-          existing.isEmpty ? '$tripId' : '$existing,$tripId';
+      final existing = LocalStore.getString('rated_trips') ?? '';
+      LocalStore.setString('rated_trips',
+          existing.isEmpty ? '$tripId' : '$existing,$tripId');
     }
     setState(() => _rated = true);
     widget.onRefresh();
@@ -949,7 +949,7 @@ class _OffersScreenState extends State<_OffersScreen> {
   int? _accepting;
   int? _declining;
 
-  String? _getToken() => html.window.localStorage['token'];
+  String? _getToken() => LocalStore.getString('token');
 
   @override
   void initState() {
@@ -2059,7 +2059,7 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
       ),
     );
     if (confirm != true || !mounted) return;
-    final token = html.window.localStorage['token'];
+    final token = LocalStore.getString('token');
     if (token == null) return;
     try {
       await Dio().delete(
@@ -2080,7 +2080,7 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
       );
       return;
     }
-    final token = html.window.localStorage['token'];
+    final token = LocalStore.getString('token');
     if (token == null) return;
     setState(() => _loading = true);
 
@@ -2537,7 +2537,7 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
     } on DioException catch (e) {
       if (mounted) {
         if (e.response?.statusCode == 401) {
-          html.window.localStorage.remove('token');
+          LocalStore.remove('token');
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Сессия истекла. Войдите снова.'), backgroundColor: Colors.red),
           );

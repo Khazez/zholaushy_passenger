@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import '../local_store.dart';
 import '../config.dart';
 import '../theme.dart';
 
@@ -35,7 +34,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
   late TextEditingController _nameCtrl;
 
-  String? _getToken() => html.window.localStorage['token'];
+  String? _getToken() => LocalStore.getString('token');
 
   @override
   void initState() {
@@ -128,7 +127,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         data: {'name': newName},
         options: Options(headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'}),
       );
-      html.window.localStorage['name'] = newName;
+      LocalStore.setString('name', newName);
       setState(() { _name = newName; _editing = false; });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

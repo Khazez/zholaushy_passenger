@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import '../local_store.dart';
 import '../config.dart';
 import '../theme.dart';
 
@@ -25,7 +24,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   late TextEditingController _nameCtrl;
 
-  String? _getToken() => html.window.localStorage['token'];
+  String? _getToken() => LocalStore.getString('token');
 
   @override
   void initState() {

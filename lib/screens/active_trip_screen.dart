@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import '../local_store.dart';
+import '../url_helper.dart';
 import '../config.dart';
 import '../theme.dart';
 
@@ -23,7 +23,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen>
   late AnimationController _pulseCtrl;
   late Animation<double> _pulse;
 
-  String? get _token => html.window.localStorage['token'];
+  String? get _token => LocalStore.getString('token');
 
   @override
   void initState() {
@@ -233,7 +233,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen>
               if (driverPhone.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 GestureDetector(
-                  onTap: () => html.window.open('tel:$driverPhone', '_blank'),
+                  onTap: () => openUrl('tel:$driverPhone'),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     decoration: const BoxDecoration(

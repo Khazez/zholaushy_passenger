@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import '../local_store.dart';
+import '../url_helper.dart';
 import 'driver_profile_screen.dart';
 import 'info_screens.dart';
 import '../config.dart';
@@ -19,13 +19,13 @@ class DriverHomeScreen extends StatefulWidget {
 class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  String? _getToken() => html.window.localStorage['token'];
-  String  _getName()  => html.window.localStorage['name'] ?? 'Водитель';
+  String? _getToken() => LocalStore.getString('token');
+  String  _getName()  => LocalStore.getString('name') ?? 'Водитель';
 
   void _logout() {
-    html.window.localStorage.remove('token');
-    html.window.localStorage.remove('mode');
-    html.window.localStorage['theme'] = 'light';
+    LocalStore.remove('token');
+    LocalStore.remove('mode');
+    LocalStore.setString('theme', 'light');
     AppState.themeNotifier.value = ThemeMode.light;
     context.go('/login');
   }
@@ -1447,7 +1447,7 @@ Widget _phoneButtons(String phone) {
   return SizedBox(
     width: double.infinity,
     child: OutlinedButton.icon(
-      onPressed: () => html.window.open('tel:$phone', '_self'),
+      onPressed: () => openUrl('tel:$phone'),
       icon: const Icon(Icons.phone_outlined, size: 14),
       label: const Text('Позвонить', style: TextStyle(fontSize: 12)),
       style: OutlinedButton.styleFrom(

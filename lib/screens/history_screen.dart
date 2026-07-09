@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import '../local_store.dart';
+import '../url_helper.dart';
 import '../config.dart';
 import '../theme.dart';
 
@@ -9,7 +9,7 @@ Widget _phoneButtons(String phone) {
   return SizedBox(
     width: double.infinity,
     child: GestureDetector(
-      onTap: () => html.window.open('tel:$phone', '_self'),
+      onTap: () => openUrl('tel:$phone'),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 9),
         decoration: BoxDecoration(
@@ -37,7 +37,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   List<Map<String, dynamic>> _trips = [];
   bool _loading = true;
 
-  String? get _token => html.window.localStorage['token'];
+  String? get _token => LocalStore.getString('token');
 
   @override
   void initState() {

@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import '../local_store.dart';
 import '../fcm_service.dart';
 import '../config.dart';
 import '../theme.dart';
@@ -103,13 +102,13 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
 
   Future<void> _saveAndNavigate(String token) async {
-    html.window.localStorage['token'] = token;
-    html.window.localStorage['mode']  = _mode;
+    LocalStore.setString('token', token);
+    LocalStore.setString('mode', _mode);
     try {
       final me = await Dio().get('$kApiBase/auth/me',
           options: Options(headers: {'Authorization': 'Bearer $token'}));
       final name = me.data['name'] as String? ?? '';
-      if (name.isNotEmpty) html.window.localStorage['name'] = name;
+      if (name.isNotEmpty) LocalStore.setString('name', name);
     } catch (_) {}
     registerFcmToken(token);
     if (_mode == 'passenger') {

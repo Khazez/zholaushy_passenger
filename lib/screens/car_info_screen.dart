@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import '../local_store.dart';
 import '../config.dart';
 import '../theme.dart';
 
@@ -41,7 +40,7 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
   }
 
   Future<void> _loadExisting() async {
-    final token = html.window.localStorage['token'];
+    final token = LocalStore.getString('token');
     if (token == null) return;
     try {
       final res = await Dio().get(
@@ -78,7 +77,7 @@ class _CarInfoScreenState extends State<CarInfoScreen> {
 
     setState(() { _loading = true; _error = null; });
 
-    final token = html.window.localStorage['token'];
+    final token = LocalStore.getString('token');
     if (token == null) { setState(() { _loading = false; _error = 'Нет токена'; }); return; }
 
     final params = 'car_brand=$brand&car_model=$model&car_year=$year&car_color=$color&car_number=$number';

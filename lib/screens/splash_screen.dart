@@ -1,8 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import '../local_store.dart';
 import '../theme.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -76,8 +75,8 @@ class _SplashScreenState extends State<SplashScreen>
     _textCtrl.forward();
     await Future.delayed(const Duration(milliseconds: 2000));
     if (!mounted) return;
-    final token = html.window.localStorage['token'];
-    final mode  = html.window.localStorage['mode'];
+    final token = LocalStore.getString('token');
+    final mode  = LocalStore.getString('mode');
     if (token != null && token.isNotEmpty) {
       context.go(mode == 'driver' ? '/driver-home' : '/home');
     } else {

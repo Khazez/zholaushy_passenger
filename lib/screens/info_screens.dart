@@ -1,12 +1,12 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import '../local_store.dart';
+import '../url_helper.dart' as url_helper;
 import '../app_state.dart';
 import '../config.dart';
 import '../theme.dart';
 
-void _openUrl(String url) => html.window.open(url, '_blank');
+void _openUrl(String url) => url_helper.openUrl(url);
 
 // ─── СЛУЖБА ПОДДЕРЖКИ ────────────────────────────────────────────────────────
 
@@ -33,8 +33,8 @@ class _SupportScreenState extends State<SupportScreen> {
 
   Future<void> _loadContacts() async {
     try {
-      final raw = await html.HttpRequest.getString('$kApiBase/settings/public');
-      final list = jsonDecode(raw) as List<dynamic>;
+      final res = await Dio().get('$kApiBase/settings/public');
+      final list = res.data as List<dynamic>;
       final map = {for (final s in list) s['key'] as String: s['value'] as String};
       if (mounted) {
         setState(() {
@@ -260,18 +260,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _lang     = html.window.localStorage['lang']  ?? 'ru';
-    _themeKey = html.window.localStorage['theme'] ?? 'system';
+    _lang     = LocalStore.getString('lang')  ?? 'ru';
+    _themeKey = LocalStore.getString('theme') ?? 'system';
   }
 
   void _setLang(String lang) {
-    html.window.localStorage['lang'] = lang;
+    LocalStore.setString('lang', lang);
     AppState.langNotifier.value = lang;
     setState(() => _lang = lang);
   }
 
   void _setTheme(String key) {
-    html.window.localStorage['theme'] = key;
+    LocalStore.setString('theme', key);
     AppState.themeNotifier.value = AppState.parseTheme(key);
     setState(() => _themeKey = key);
   }

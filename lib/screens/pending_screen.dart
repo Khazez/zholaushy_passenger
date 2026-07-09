@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import '../local_store.dart';
 import '../config.dart';
 import '../theme.dart';
 import '../app_state.dart';
@@ -25,7 +24,7 @@ class _PendingScreenState extends State<PendingScreen> {
     _check();
   }
 
-  String? _getToken() => html.window.localStorage['token'];
+  String? _getToken() => LocalStore.getString('token');
 
   Future<void> _check() async {
     setState(() => _checking = true);
@@ -56,9 +55,9 @@ class _PendingScreenState extends State<PendingScreen> {
   }
 
   void _logout() {
-    html.window.localStorage.remove('token');
-    html.window.localStorage.remove('mode');
-    html.window.localStorage['theme'] = 'light';
+    LocalStore.remove('token');
+    LocalStore.remove('mode');
+    LocalStore.setString('theme', 'light');
     AppState.themeNotifier.value = ThemeMode.light;
     context.go('/login');
   }

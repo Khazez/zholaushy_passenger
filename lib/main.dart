@@ -3,10 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_fonts/google_fonts.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
 
 import 'fcm_service.dart';
+import 'local_store.dart';
 import 'app_state.dart';
 import 'theme.dart';
 import 'screens/splash_screen.dart';
@@ -30,9 +29,10 @@ const _firebaseOptions = FirebaseOptions(
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await LocalStore.init();
   await Firebase.initializeApp(options: _firebaseOptions);
   GoogleFonts.config.allowRuntimeFetching = true;
-  final savedToken = html.window.localStorage['token'];
+  final savedToken = LocalStore.getString('token');
   if (savedToken != null) registerFcmToken(savedToken);
   runApp(const ZholaushyApp());
 }
@@ -116,8 +116,8 @@ class _ZholaushyAppState extends State<ZholaushyApp> {
         ),
       ],
     );
-    AppState.themeNotifier.value = AppState.parseTheme(html.window.localStorage['theme'] ?? 'system');
-    AppState.langNotifier.value  = html.window.localStorage['lang'] ?? 'ru';
+    AppState.themeNotifier.value = AppState.parseTheme(LocalStore.getString('theme') ?? 'system');
+    AppState.langNotifier.value  = LocalStore.getString('lang') ?? 'ru';
     AppState.themeNotifier.addListener(_rebuild);
     AppState.langNotifier.addListener(_rebuild);
   }
