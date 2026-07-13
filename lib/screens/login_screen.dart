@@ -33,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   late final Animation<Offset>   _cardSlide;
   late final Animation<double>   _cardFade;
 
-  String get _fullPhone => '+77${_phoneCtrl.text.trim()}';
+  String get _fullPhone => '+7${_phoneCtrl.text.trim()}';
   String get _otpCode   => _otpCtrls.map((c) => c.text).join();
 
   @override
@@ -62,8 +62,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   Future<void> _sendCode() async {
     FocusScope.of(context).unfocus();
     final digits = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
-    if (digits.length < 9) {
-      setState(() => _error = 'Введите 9 цифр после +7 7');
+    if (digits.length < 10) {
+      setState(() => _error = 'Введите номер полностью, начиная с 7');
       return;
     }
     setState(() { _loading = true; _error = null; });
@@ -414,45 +414,83 @@ class _PhoneField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.cardC,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.divC),
-      ),
-      child: Row(children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
           decoration: BoxDecoration(
-            border: Border(right: BorderSide(color: context.divC)),
+            color: context.cardC,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: context.divC),
           ),
-          child: Text('+7 7', style: TextStyle(
-            fontSize: 16, fontWeight: FontWeight.w600, color: context.iconC,
-          )),
-        ),
-        Expanded(
-          child: TextField(
-            controller: controller,
-            keyboardType: TextInputType.phone,
-            autofocus: true,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(9),
-            ],
-            onSubmitted: (_) => onSubmit(),
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: context.textC),
-            decoration: InputDecoration(
-              hintText: 'XX XXX XX XX',
-              hintStyle: TextStyle(color: context.subC),
-              filled: false,
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+          child: Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              decoration: BoxDecoration(
+                border: Border(right: BorderSide(color: context.divC)),
+              ),
+              child: Text('+7', style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w600, color: context.iconC,
+              )),
             ),
-          ),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                keyboardType: TextInputType.phone,
+                autofocus: true,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                onSubmitted: (_) => onSubmit(),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: context.textC),
+                decoration: InputDecoration(
+                  hintText: '7XX XXX XX XX',
+                  hintStyle: TextStyle(color: context.subC),
+                  filled: false,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+                ),
+              ),
+            ),
+          ]),
         ),
-      ]),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: controller,
+          builder: (context, value, _) {
+            if (!value.text.startsWith('8')) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(top: 8, left: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, size: 15, color: kTeal),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Номер уже начинается с +7 — вводить "8" в начале не нужно',
+                      style: TextStyle(fontSize: 12, color: context.subC),
+                    ),
+                  ),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () {
+                      controller.text = value.text.substring(1);
+                      controller.selection = TextSelection.collapsed(offset: controller.text.length);
+                    },
+                    child: const Text('Исправить', style: TextStyle(fontSize: 12, color: kTeal, fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 }
