@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../local_store.dart';
 import '../config.dart';
 import '../theme.dart';
+import '../widgets/avatar_picker.dart';
 
 class DriverProfileScreen extends StatefulWidget {
   const DriverProfileScreen({super.key});
@@ -19,6 +20,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
   String _name      = '';
   String _phone     = '';
+  String? _avatarUrl;
   String _createdAt = '';
 
   String? _carBrand;
@@ -61,6 +63,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
       setState(() {
         _name      = d['name']  ?? '';
         _phone     = d['phone'] ?? '';
+        _avatarUrl = d['avatar_url'] as String?;
         _createdAt = _formatDate(d['created_at']);
         _nameCtrl.text = _name;
       });
@@ -180,15 +183,11 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                   ),
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 36),
                   child: Column(children: [
-                    Container(
-                      width: 96, height: 96,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.25),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                      ),
-                      child: Center(child: Text(_initials(_name),
-                          style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white))),
+                    AvatarPicker(
+                      avatarUrl: _avatarUrl,
+                      initials: _initials(_name),
+                      token: _getToken() ?? '',
+                      onUploaded: (url) => setState(() => _avatarUrl = url),
                     ),
                     const SizedBox(height: 14),
                     Text(_name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),

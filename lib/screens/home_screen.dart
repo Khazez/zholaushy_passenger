@@ -8,6 +8,7 @@ import 'info_screens.dart';
 import '../config.dart';
 import '../theme.dart';
 import '../app_state.dart';
+import '../widgets/avatar_picker.dart';
 
 // Кнопки "Позвонить" и "WhatsApp" для номера телефона
 Widget _phoneButtons(String phone, Color primary, {bool compact = false}) {
@@ -630,18 +631,10 @@ class _AcceptedRequestCardState extends State<_AcceptedRequestCard> {
 
                   // Водитель
                   Row(children: [
-                    Container(
-                      width: 40, height: 40,
-                      decoration: const BoxDecoration(gradient: kGradient, shape: BoxShape.circle),
-                      child: Center(
-                        child: Text(
-                          ((request['driver_name'] as String?)?.trim().isNotEmpty == true
-                              ? (request['driver_name'] as String).trim()[0] : '?').toUpperCase(),
-                          style: TextStyle(
-                            color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
+                    AvatarView(
+                      avatarUrl: request['driver_avatar_url'] as String?,
+                      initials: ((request['driver_name'] as String?)?.trim().isNotEmpty == true
+                          ? (request['driver_name'] as String).trim()[0] : '?').toUpperCase(),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1246,16 +1239,11 @@ class _OfferCard extends StatelessWidget {
 
         // Водитель
         Row(children: [
-          Container(
-            width: 44, height: 44,
-            decoration: const BoxDecoration(gradient: kGradient, shape: BoxShape.circle),
-            child: Center(
-              child: Text(
-                ((offer['driver_name'] as String?)?.trim().isNotEmpty == true
-                    ? (offer['driver_name'] as String).trim()[0] : '?').toUpperCase(),
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-            ),
+          AvatarView(
+            size: 44,
+            avatarUrl: offer['driver_avatar_url'] as String?,
+            initials: ((offer['driver_name'] as String?)?.trim().isNotEmpty == true
+                ? (offer['driver_name'] as String).trim()[0] : '?').toUpperCase(),
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

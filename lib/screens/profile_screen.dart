@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../local_store.dart';
 import '../config.dart';
 import '../theme.dart';
+import '../widgets/avatar_picker.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -18,6 +19,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String _name = '';
   String _phone = '';
+  String? _avatarUrl;
   String _createdAt = '';
   List<dynamic> _ratings = [];
   double? _avgRating;
@@ -51,6 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _name = d['name'] ?? '';
         _phone = d['phone'] ?? '';
+        _avatarUrl = d['avatar_url'] as String?;
         _createdAt = _formatDate(d['created_at']);
         _nameCtrl.text = _name;
         _loading = false;
@@ -172,24 +175,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 36),
                   child: Column(children: [
-                    Container(
-                      width: 96,
-                      height: 96,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.25),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _initials(_name),
-                          style: const TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+                    AvatarPicker(
+                      avatarUrl: _avatarUrl,
+                      initials: _initials(_name),
+                      token: _getToken() ?? '',
+                      onUploaded: (url) => setState(() => _avatarUrl = url),
                     ),
                     const SizedBox(height: 14),
                     Text(

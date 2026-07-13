@@ -8,6 +8,7 @@ import 'info_screens.dart';
 import '../config.dart';
 import '../theme.dart';
 import '../app_state.dart';
+import '../widgets/avatar_picker.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -1509,11 +1510,10 @@ class _PassengerRow extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
         Row(children: [
-          Container(
-            width: 32, height: 32,
-            decoration: BoxDecoration(color: Colors.blue.shade200, shape: BoxShape.circle),
-            child: Center(child: Text(initials,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+          AvatarView(
+            size: 32,
+            avatarUrl: booking['passenger_avatar_url'] as String?,
+            initials: initials,
           ),
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
