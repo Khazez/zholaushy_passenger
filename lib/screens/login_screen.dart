@@ -60,6 +60,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   // ── Логика (не меняется) ──────────────────────────────────────────────────
 
   Future<void> _sendCode() async {
+    FocusScope.of(context).unfocus();
     final digits = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
     if (digits.length < 9) {
       setState(() => _error = 'Введите 9 цифр после +7 7');
@@ -79,6 +80,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
 
   Future<void> _verifyCode() async {
+    FocusScope.of(context).unfocus();
     final code = _otpCode;
     if (code.length != 4) {
       setState(() => _error = 'Введите 4-значный код');
@@ -176,7 +178,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     return Theme(
       data: buildAppTheme(),
       child: Scaffold(
-      body: Stack(
+      resizeToAvoidBottomInset: false,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Stack(
         children: [
 
           // ── Тёмный верх с брендингом ──
@@ -338,6 +344,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
             ),
           ),
         ],
+        ),
       ),
       ),
     );

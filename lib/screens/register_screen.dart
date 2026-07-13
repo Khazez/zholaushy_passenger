@@ -92,7 +92,11 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
     return Theme(
       data: buildAppTheme(),
       child: Scaffold(
-      body: Stack(
+      resizeToAvoidBottomInset: false,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Stack(
         children: [
 
           // ── Тёмный верх ──
@@ -324,6 +328,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
             ),
           ),
         ],
+        ),
       ),
       ),
     );
