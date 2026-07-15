@@ -91,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       child: Row(children: [
         Icon(icon, size: 20, color: danger ? Colors.red[600] : kTeal),
         const SizedBox(width: 12),
-        Text(label, style: TextStyle(fontSize: 14, color: danger ? Colors.red[600] : kText)),
+        Text(label, style: TextStyle(fontSize: 14, color: danger ? Colors.red[600] : context.textC)),
       ]),
     );
   }
