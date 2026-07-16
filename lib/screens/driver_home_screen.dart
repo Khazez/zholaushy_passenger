@@ -9,6 +9,9 @@ import '../config.dart';
 import '../theme.dart';
 import '../app_state.dart';
 import '../widgets/avatar_picker.dart';
+import '../widgets/account_drawer.dart';
+import '../widgets/route_picker_sheet.dart';
+import '../widgets/date_time_sheet.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -19,6 +22,7 @@ class DriverHomeScreen extends StatefulWidget {
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   String? _getToken() => LocalStore.getString('token');
   String  _getName()  => LocalStore.getString('name') ?? 'Водитель';
@@ -64,14 +68,23 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
     final name = _getName();
     final initials = name.trim().split(' ')
         .where((p) => p.isNotEmpty).take(2)
         .map((p) => p[0].toUpperCase()).join();
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: context.bgC,
+      endDrawer: AccountDrawer(
+        name: name,
+        role: 'Водитель',
+        onProfile: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DriverProfileScreen())),
+        onSupport: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportScreen())),
+        onSettings: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+        onAbout: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen())),
+        onLogout: _logout,
+      ),
       appBar: AppBar(
         backgroundColor: kNavy,
         foregroundColor: Colors.white,
@@ -99,36 +112,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> with SingleTickerPr
           ),
         ]),
         actions: [
-          PopupMenuButton<String>(
+          IconButton(
             icon: const Icon(Icons.more_vert),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            onSelected: (val) {
-              switch (val) {
-                case 'profile':
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const DriverProfileScreen()));
-                  break;
-                case 'support':
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportScreen()));
-                  break;
-                case 'settings':
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-                  break;
-                case 'about':
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen()));
-                  break;
-                case 'logout':
-                  _logout();
-                  break;
-              }
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(value: 'profile',  child: ListTile(leading: Icon(Icons.person_outline),   title: Text('Профиль'),      contentPadding: EdgeInsets.zero, dense: true)),
-              const PopupMenuItem(value: 'support',  child: ListTile(leading: Icon(Icons.help_outline),     title: Text('Поддержка'),    contentPadding: EdgeInsets.zero, dense: true)),
-              const PopupMenuItem(value: 'settings', child: ListTile(leading: Icon(Icons.settings_outlined), title: Text('Настройки'),    contentPadding: EdgeInsets.zero, dense: true)),
-              const PopupMenuItem(value: 'about',    child: ListTile(leading: Icon(Icons.info_outline),      title: Text('О приложении'), contentPadding: EdgeInsets.zero, dense: true)),
-              const PopupMenuDivider(),
-              const PopupMenuItem(value: 'logout',   child: ListTile(leading: Icon(Icons.logout, color: Colors.red), title: Text('Выйти', style: TextStyle(color: Colors.red)), contentPadding: EdgeInsets.zero, dense: true)),
-            ],
+            tooltip: 'Профиль',
+            onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
           ),
         ],
         bottom: TabBar(
@@ -1609,28 +1596,6 @@ class _CreateTripScreenState extends State<_CreateTripScreen> {
     super.dispose();
   }
 
-  Future<void> _pickDate() async {
-    final d = await showDatePicker(
-      context: context,
-      initialDate: _date,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 90)),
-    );
-    if (d != null) setState(() => _date = d);
-  }
-
-  Future<void> _pickTime() async {
-    final t = await showTimePicker(
-      context: context,
-      initialTime: _time,
-      builder: (ctx, child) => MediaQuery(
-        data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true),
-        child: child!,
-      ),
-    );
-    if (t != null) setState(() => _time = t);
-  }
-
   Future<void> _submit() async {
     if (_routeId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1678,8 +1643,6 @@ class _CreateTripScreenState extends State<_CreateTripScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: kNavy,
@@ -1692,48 +1655,46 @@ class _CreateTripScreenState extends State<_CreateTripScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
           _label('Маршрут'),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[300]!),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                isExpanded: true,
-                hint: const Text('Выберите маршрут'),
-                value: _routeId,
-                items: widget.routes.map<DropdownMenuItem<int>>((r) => DropdownMenuItem(
-                  value: r['id'] as int,
-                  child: Text('${r['city_from']} → ${r['city_to']}'),
-                )).toList(),
-                onChanged: (v) => setState(() => _routeId = v),
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () async {
+              final current = widget.routes.where((r) => r['id'] == _routeId).firstOrNull;
+              final picked = await showRoutePickerSheet(context, routes: widget.routes.cast<Map<String, dynamic>>(), selected: current);
+              if (picked != null) setState(() => _routeId = picked['id'] as int);
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
               ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              child: Row(children: [
+                const Icon(Icons.route_outlined, color: kTeal, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    () {
+                      final r = widget.routes.where((r) => r['id'] == _routeId).firstOrNull;
+                      return r != null ? '${r['city_from']} → ${r['city_to']}' : 'Выберите маршрут';
+                    }(),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
+                      color: _routeId != null ? Colors.black87 : Colors.grey[600]),
+                  ),
+                ),
+                Icon(Icons.expand_more_rounded, color: Colors.grey[600]),
+              ]),
             ),
           ),
 
           const SizedBox(height: 16),
           _label('Дата и время отправления'),
-          Row(children: [
-            Expanded(
-              child: _tapField(
-                icon: Icons.calendar_today_outlined,
-                text: '${_date.day.toString().padLeft(2,'0')}.${_date.month.toString().padLeft(2,'0')}.${_date.year}',
-                onTap: _pickDate,
-                primary: primary,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _tapField(
-                icon: Icons.access_time_outlined,
-                text: '${_time.hour.toString().padLeft(2,'0')}:${_time.minute.toString().padLeft(2,'0')}',
-                onTap: _pickTime,
-                primary: primary,
-              ),
-            ),
-          ]),
+          DateTimeField(
+            date: _date,
+            time: _time,
+            onDateChanged: (d) => setState(() => _date = d),
+            onTimeChanged: (t) => setState(() => _time = t),
+          ),
 
           const SizedBox(height: 16),
           Row(children: [
@@ -1793,24 +1754,6 @@ class _CreateTripScreenState extends State<_CreateTripScreen> {
     child: Text(text, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
   );
 
-  Widget _tapField({required IconData icon, required String text, required VoidCallback onTap, required Color primary}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: Row(children: [
-          Icon(icon, size: 18, color: primary),
-          const SizedBox(width: 10),
-          Text(text, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-        ]),
-      ),
-    );
-  }
 }
 
 // ─── ТАБ 4: БАЛАНС ВОДИТЕЛЯ ──────────────────────────────────────────────────

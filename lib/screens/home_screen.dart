@@ -9,6 +9,9 @@ import '../config.dart';
 import '../theme.dart';
 import '../app_state.dart';
 import '../widgets/avatar_picker.dart';
+import '../widgets/account_drawer.dart';
+import '../widgets/route_picker_sheet.dart';
+import '../widgets/date_time_sheet.dart';
 
 // Кнопки "Позвонить" и "WhatsApp" для номера телефона
 Widget _phoneButtons(String phone, Color primary, {bool compact = false}) {
@@ -51,6 +54,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   List<Map<String, dynamic>> _routes = [];
 
   @override
@@ -85,21 +89,20 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     context.go('/login');
   }
 
-  PopupMenuItem<String> _menuItem(String value, IconData icon, String label, {bool danger = false}) {
-    return PopupMenuItem<String>(
-      value: value,
-      child: Row(children: [
-        Icon(icon, size: 20, color: danger ? Colors.red[600] : kTeal),
-        const SizedBox(width: 12),
-        Text(label, style: TextStyle(fontSize: 14, color: danger ? Colors.red[600] : context.textC)),
-      ]),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: context.bgC,
+      endDrawer: AccountDrawer(
+        name: LocalStore.getString('name') ?? 'Пассажир',
+        role: 'Пассажир',
+        onProfile: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+        onSupport: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportScreen())),
+        onSettings: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+        onAbout: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen())),
+        onLogout: _logout,
+      ),
       appBar: AppBar(
         backgroundColor: kNavy,
         foregroundColor: Colors.white,
@@ -113,46 +116,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             tooltip: 'История поездок',
             onPressed: () => context.push('/history'),
           ),
-          PopupMenuButton<String>(
+          IconButton(
             icon: Icon(Icons.more_vert),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            offset: const Offset(0, 48),
-            elevation: 8,
-            onSelected: (value) {
-              switch (value) {
-                case 'profile':
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => const ProfileScreen(),
-                  ));
-                  break;
-                case 'support':
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => const SupportScreen(),
-                  ));
-                  break;
-                case 'settings':
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => const SettingsScreen(),
-                  ));
-                  break;
-                case 'about':
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => const AboutScreen(),
-                  ));
-                  break;
-                case 'logout':
-                  _logout();
-                  break;
-              }
-            },
-            itemBuilder: (_) => [
-              _menuItem('profile', Icons.person_outline, 'Профиль'),
-              _menuItem('support', Icons.headset_mic_outlined, 'Служба поддержки'),
-              _menuItem('settings', Icons.settings_outlined, 'Настройки'),
-              _menuItem('about', Icons.info_outline, 'О приложении'),
-              const PopupMenuDivider(),
-              _menuItem('logout', Icons.logout, 'Выйти', danger: true),
-            ],
+            tooltip: 'Профиль',
+            onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
           ),
         ],
         bottom: TabBar(
@@ -1694,252 +1661,6 @@ class _BookingFormScreenState extends State<_BookingFormScreen> {
 
 // ─── КОМПАКТНЫЙ ПИКЕР ДАТЫ И ВРЕМЕНИ ────────────────────────────────────────
 
-class _DateTimePicker extends StatefulWidget {
-  final DateTime? selectedDate;
-  final TimeOfDay? selectedTime;
-  final ValueChanged<DateTime> onDateSelected;
-  final ValueChanged<TimeOfDay> onTimeSelected;
-
-  const _DateTimePicker({
-    this.selectedDate,
-    this.selectedTime,
-    required this.onDateSelected,
-    required this.onTimeSelected,
-  });
-
-  @override
-  State<_DateTimePicker> createState() => _DateTimePickerState();
-}
-
-class _DateTimePickerState extends State<_DateTimePicker> {
-  static const _monthNames = [
-    'Янв','Фев','Мар','Апр','Май','Июн',
-    'Июл','Авг','Сен','Окт','Ноя','Дек',
-  ];
-
-  late int _day, _month, _year, _hour, _minute;
-
-  late TextEditingController _dayCtrl, _monthCtrl, _yearCtrl, _hourCtrl, _minCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    final d = widget.selectedDate ?? DateTime.now().add(const Duration(days: 1));
-    final t = widget.selectedTime ?? const TimeOfDay(hour: 8, minute: 0);
-    _day = d.day; _month = d.month; _year = d.year;
-    _hour = t.hour; _minute = t.minute;
-    _dayCtrl   = TextEditingController(text: _day.toString().padLeft(2,'0'));
-    _monthCtrl = TextEditingController(text: _month.toString().padLeft(2,'0'));
-    _yearCtrl  = TextEditingController(text: '$_year');
-    _hourCtrl  = TextEditingController(text: _hour.toString().padLeft(2,'0'));
-    _minCtrl   = TextEditingController(text: _minute.toString().padLeft(2,'0'));
-  }
-
-  @override
-  void dispose() {
-    _dayCtrl.dispose(); _monthCtrl.dispose(); _yearCtrl.dispose();
-    _hourCtrl.dispose(); _minCtrl.dispose();
-    super.dispose();
-  }
-
-  int _daysInMonth(int y, int m) => DateTime(y, m + 1, 0).day;
-
-  void _notify() {
-    final maxDay = _daysInMonth(_year, _month);
-    if (_day > maxDay) _day = maxDay;
-    final date = DateTime(_year, _month, _day);
-    final today = DateTime.now();
-    if (date.isBefore(DateTime(today.year, today.month, today.day))) return;
-    widget.onDateSelected(date);
-    widget.onTimeSelected(TimeOfDay(hour: _hour, minute: _minute));
-  }
-
-  void _setDay(int v) {
-    final max = _daysInMonth(_year, _month);
-    _day = v.clamp(1, max);
-    _dayCtrl.text = _day.toString().padLeft(2,'0');
-    _notify();
-  }
-
-  void _setMonth(int v) {
-    _month = v.clamp(1, 12);
-    _monthCtrl.text = _month.toString().padLeft(2,'0');
-    _notify();
-  }
-
-  void _setYear(int v) {
-    _year = v.clamp(DateTime.now().year, DateTime.now().year + 2);
-    _yearCtrl.text = '$_year';
-    _notify();
-  }
-
-  void _setHour(int v) {
-    _hour = (v + 24) % 24;
-    _hourCtrl.text = _hour.toString().padLeft(2,'0');
-    _notify();
-  }
-
-  void _setMinute(int v) {
-    _minute = ((v ~/ 5) * 5 + 60) % 60;
-    _minCtrl.text = _minute.toString().padLeft(2,'0');
-    _notify();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: context.cardC,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFDDE3F0)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-        // ── ДАТА ──
-        Text('Дата', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-            letterSpacing: 0.6, color: context.subC)),
-        const SizedBox(height: 8),
-        Row(children: [
-          _Spinner(
-            label: 'ДД', ctrl: _dayCtrl, width: 56,
-            onUp: () => _setDay(_day + 1),
-            onDown: () => _setDay(_day - 1),
-            onType: (s) { final v = int.tryParse(s); if (v != null) _setDay(v); },
-            primary: kNavy,
-          ),
-          _sep('/'),
-          _Spinner(
-            label: 'ММ', ctrl: _monthCtrl, width: 56,
-            onUp: () => _setMonth(_month + 1),
-            onDown: () => _setMonth(_month - 1),
-            onType: (s) { final v = int.tryParse(s); if (v != null) _setMonth(v); },
-            primary: kNavy,
-            hint: _monthNames[_month - 1],
-          ),
-          _sep('/'),
-          _Spinner(
-            label: 'ГГГГ', ctrl: _yearCtrl, width: 76,
-            onUp: () => _setYear(_year + 1),
-            onDown: () => _setYear(_year - 1),
-            onType: (s) { final v = int.tryParse(s); if (v != null && s.length == 4) _setYear(v); },
-            primary: kNavy,
-          ),
-        ]),
-
-        const SizedBox(height: 16),
-        Divider(height: 1, color: const Color(0xFFDDE3F0)),
-        const SizedBox(height: 12),
-
-        // ── ВРЕМЯ ──
-        Text('Время', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-            letterSpacing: 0.6, color: context.subC)),
-        const SizedBox(height: 8),
-        Row(children: [
-          _Spinner(
-            label: 'ЧЧ', ctrl: _hourCtrl, width: 64,
-            onUp: () => _setHour(_hour + 1),
-            onDown: () => _setHour(_hour - 1),
-            onType: (s) { final v = int.tryParse(s); if (v != null) _setHour(v); },
-            primary: kNavy,
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 18),
-            child: Text(':', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700,
-                color: context.subC)),
-          ),
-          _Spinner(
-            label: 'ММ', ctrl: _minCtrl, width: 64,
-            onUp: () => _setMinute(_minute + 5),
-            onDown: () => _setMinute(_minute - 5),
-            onType: (s) { final v = int.tryParse(s); if (v != null) _setMinute(v); },
-            primary: kNavy,
-          ),
-        ]),
-      ]),
-    );
-  }
-
-  Widget _sep(String ch) => Padding(
-    padding: const EdgeInsets.fromLTRB(6, 0, 6, 18),
-    child: Text(ch, style: TextStyle(fontSize: 18, color: Colors.grey[300], fontWeight: FontWeight.w300)),
-  );
-}
-
-// Один спиннер-поле: стрелка вверх, текстовое поле, стрелка вниз
-class _Spinner extends StatelessWidget {
-  final String label;
-  final TextEditingController ctrl;
-  final double width;
-  final VoidCallback onUp;
-  final VoidCallback onDown;
-  final ValueChanged<String> onType;
-  final Color primary;
-  final String? hint;
-
-  const _Spinner({
-    required this.label,
-    required this.ctrl,
-    required this.width,
-    required this.onUp,
-    required this.onDown,
-    required this.onType,
-    required this.primary,
-    this.hint,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(children: [
-      // Стрелка вверх
-      _arrow(Icons.keyboard_arrow_up_rounded, onUp, primary),
-      // Поле
-      SizedBox(
-        width: width,
-        child: TextField(
-          controller: ctrl,
-          keyboardType: TextInputType.number,
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: primary),
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(vertical: 8),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: primary.withOpacity(0.2)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: primary, width: 1.5),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey[200]!),
-            ),
-            filled: true,
-            fillColor: primary.withOpacity(0.04),
-          ),
-          onChanged: onType,
-        ),
-      ),
-      // Подпись
-      const SizedBox(height: 2),
-      Text(hint ?? label,
-          style: TextStyle(fontSize: 10, color: Colors.grey[400], fontWeight: FontWeight.w500)),
-      // Стрелка вниз
-      _arrow(Icons.keyboard_arrow_down_rounded, onDown, primary),
-    ]);
-  }
-
-  Widget _arrow(IconData icon, VoidCallback onTap, Color color) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(6),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: Icon(icon, size: 22, color: color.withOpacity(0.5)),
-    ),
-  );
-}
 
 // ─── ЭКРАН: РЕДАКТИРОВАТЬ ЗАЯВКУ ─────────────────────────────────────────────
 
@@ -2007,28 +1728,6 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
     for (final p in _extraPairs) p.dispose();
     for (final p in _extraDestPairs) p.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickDate() async {
-    final d = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate ?? DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-    );
-    if (d != null) setState(() => _selectedDate = d);
-  }
-
-  Future<void> _pickTime() async {
-    final t = await showTimePicker(
-      context: context,
-      initialTime: _selectedTime ?? const TimeOfDay(hour: 8, minute: 0),
-      builder: (ctx, child) => MediaQuery(
-        data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true),
-        child: child!,
-      ),
-    );
-    if (t != null) setState(() => _selectedTime = t);
   }
 
   Future<void> _cancel() async {
@@ -2138,29 +1837,6 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
     ),
   );
 
-  Widget _tapField({required IconData icon, required String text, required bool filled, required VoidCallback onTap}) {
-    return Material(
-      color: context.cardC,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFDDE3F0)),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
-          child: Row(children: [
-            Icon(icon, color: filled ? kTeal : kSubtext),
-            const SizedBox(width: 14),
-            Text(text, style: TextStyle(fontSize: 16, color: filled ? kText : kSubtext)),
-          ]),
-        ),
-      ),
-    );
-  }
-
   Widget _section(String title) => Padding(
     padding: const EdgeInsets.only(top: 20, bottom: 8),
     child: Text(title.toUpperCase(),
@@ -2208,11 +1884,11 @@ class _EditRequestScreenState extends State<_EditRequestScreen> {
 
           // Дата и время
           _section('Дата и время'),
-          _DateTimePicker(
-            selectedDate: _selectedDate,
-            selectedTime: _selectedTime,
-            onDateSelected: (d) => setState(() => _selectedDate = d),
-            onTimeSelected: (t) => setState(() => _selectedTime = t),
+          DateTimeField(
+            date: _selectedDate,
+            time: _selectedTime,
+            onDateChanged: (d) => setState(() => _selectedDate = d),
+            onTimeChanged: (t) => setState(() => _selectedTime = t),
           ),
 
           // Адрес подачи
@@ -2455,28 +2131,6 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
     super.dispose();
   }
 
-  Future<void> _pickDate() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-    );
-    if (date != null) setState(() => _selectedDate = date);
-  }
-
-  Future<void> _pickTime() async {
-    final time = await showTimePicker(
-      context: context,
-      initialTime: _selectedTime ?? const TimeOfDay(hour: 8, minute: 0),
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-        child: child!,
-      ),
-    );
-    if (time != null) setState(() => _selectedTime = time);
-  }
-
   Future<void> _submit() async {
     if (_selectedRoute == null || _selectedDate == null || _selectedTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2565,31 +2219,6 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
     );
   }
 
-  // Поле-кнопка (дата/время)
-  Widget _tapField({required IconData icon, required String text, required bool filled, required VoidCallback onTap}) {
-    return Material(
-      color: context.cardC,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFDDE3F0)),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
-          child: Row(children: [
-            Icon(icon, color: filled ? kTeal : kSubtext),
-            const SizedBox(width: 14),
-            Text(text,
-                style: TextStyle(fontSize: 16, color: filled ? kText : kSubtext)),
-          ]),
-        ),
-      ),
-    );
-  }
-
   // Разделитель-заголовок секции
   Widget _section(String title) => Padding(
     padding: const EdgeInsets.only(top: 20, bottom: 8),
@@ -2617,39 +2246,49 @@ class _CreateRequestScreenState extends State<_CreateRequestScreen> {
 
           // ── МАРШРУТ ──
           _section('Маршрут'),
-          Container(
-            decoration: BoxDecoration(
-              color: context.cardC,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFDDE3F0)),
-            ),
-            child: DropdownButtonFormField<Map<String, dynamic>>(
-              value: _selectedRoute,
-              decoration: const InputDecoration(
-                labelText: 'Откуда → Куда',
-                prefixIcon: Icon(Icons.route_outlined, color: kTeal),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: true,
-                fillColor: Colors.transparent,
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () async {
+              final picked = await showRoutePickerSheet(context, routes: widget.routes, selected: _selectedRoute);
+              if (picked != null) setState(() => _selectedRoute = picked);
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                color: context.cardC,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFDDE3F0)),
               ),
-              items: widget.routes.map((r) => DropdownMenuItem(
-                value: r,
-                child: Text('${r['city_from']} → ${r['city_to']}'),
-              )).toList(),
-              onChanged: (v) => setState(() => _selectedRoute = v),
-              hint: Text('Выберите маршрут', style: TextStyle(color: context.subC)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(children: [
+                const Icon(Icons.route_outlined, color: kTeal),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Откуда → Куда', style: TextStyle(fontSize: 11, color: context.subC)),
+                    const SizedBox(height: 2),
+                    Text(
+                      _selectedRoute != null
+                          ? '${_selectedRoute!['city_from']} → ${_selectedRoute!['city_to']}'
+                          : 'Выберите маршрут',
+                      style: TextStyle(
+                        fontSize: 14.5, fontWeight: FontWeight.w700,
+                        color: _selectedRoute != null ? context.textC : context.subC,
+                      ),
+                    ),
+                  ]),
+                ),
+                Icon(Icons.expand_more_rounded, color: context.subC),
+              ]),
             ),
           ),
 
           // ── ДАТА И ВРЕМЯ ──
           _section('Дата и время'),
-          _DateTimePicker(
-            selectedDate: _selectedDate,
-            selectedTime: _selectedTime,
-            onDateSelected: (d) => setState(() => _selectedDate = d),
-            onTimeSelected: (t) => setState(() => _selectedTime = t),
+          DateTimeField(
+            date: _selectedDate,
+            time: _selectedTime,
+            onDateChanged: (d) => setState(() => _selectedDate = d),
+            onTimeChanged: (t) => setState(() => _selectedTime = t),
           ),
 
           // ── АДРЕС ПОДАЧИ ──
@@ -2941,28 +2580,39 @@ class _PoputkaTabState extends State<_PoputkaTab> {
           child: Row(
             children: [
               Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: context.bgC,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFDDE3F0)),
-                  ),
-                  child: DropdownButtonFormField<Map<String, dynamic>>(
-                    value: _selectedRoute,
-                    decoration: const InputDecoration(
-                      labelText: 'Куда едете?',
-                      prefixIcon: Icon(Icons.search_rounded, color: kTeal),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () async {
+                    final picked = await showRoutePickerSheet(
+                      context, routes: widget.routes, selected: _selectedRoute, title: 'Куда едете?',
+                    );
+                    if (picked != null) {
+                      setState(() { _selectedRoute = picked; _searched = false; _trips = []; });
+                    }
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: context.bgC,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFDDE3F0)),
                     ),
-                    items: widget.routes.map((r) => DropdownMenuItem(
-                      value: r,
-                      child: Text('${r['city_from']} → ${r['city_to']}'),
-                    )).toList(),
-                    onChanged: (v) => setState(() { _selectedRoute = v; _searched = false; _trips = []; }),
-                    hint: Text('Выберите маршрут', style: TextStyle(color: context.subC)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(children: [
+                      const Icon(Icons.search_rounded, color: kTeal, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _selectedRoute != null
+                              ? '${_selectedRoute!['city_from']} → ${_selectedRoute!['city_to']}'
+                              : 'Выберите маршрут',
+                          style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600,
+                            color: _selectedRoute != null ? context.textC : context.subC,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ]),
                   ),
                 ),
               ),
