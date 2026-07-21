@@ -92,7 +92,10 @@ class _AddrPair {
 - Все события: новый отклик, принятие/отклонение, отзыв, отмена, завершение, Выехал, Подъехал
 
 ### Дизайн ✅ (все экраны)
-- splash_screen.dart — анимированный, казахский орнамент, ZHOLAUSHY
+- splash_screen.dart — логотип добавлен (21.07.2026): `assets/images/zholaushy_icon.png`
+  (машина + гео-метка, нарисованы белым, стоят прямо на градиенте без карточки-подложки;
+  внутренние детали перекрашены в kNavy/kTeal) с анимацией появления —
+  overshoot-масштаб лого → буквы wordmark по одной → пульсирующие точки загрузки
 - login_screen.dart, register_screen.dart
 - home_screen.dart — полностью (все внутренние экраны)
 - active_trip_screen.dart — статус-баннеры с анимацией пульса
@@ -100,6 +103,19 @@ class _AddrPair {
 - history_screen.dart, profile_screen.dart, driver_profile_screen.dart
 - car_info_screen.dart, pending_screen.dart
 - info_screens.dart (Поддержка, Настройки, О приложении)
+
+### Bottom sheet вместо системных попапов ✅ (16.07.2026)
+Общие виджеты в `lib/widgets/`, используются и в пассажирском, и в
+водительском режиме — вместо дублированного кода в двух экранах:
+- `account_drawer.dart` — `AccountDrawer`, боковая шторка (`Scaffold.endDrawer`)
+  вместо `PopupMenuButton`: аватар+имя+роль кликабельны целиком → профиль,
+  плоские иконки, группы через разделители, «Выйти» снизу
+- `route_picker_sheet.dart` — `showRoutePickerSheet()`, bottom sheet с поиском
+  и ценой вместо `DropdownButtonFormField` (было в 3 местах: 2 у пассажира,
+  1 у водителя)
+- `date_time_sheet.dart` — `showDateTimeSheet()` + виджет-триггер
+  `DateTimeField`, bottom sheet с карточками дней и колесом часы:минуты
+  (24-часовой формат, без AM/PM) вместо кастомного степпера/нативных пикеров
 
 ### LocalStorage
 - `rated_trips` — comma-separated trip IDs уже оценённых поездок
@@ -111,19 +127,24 @@ zholaushy_passenger/lib/
 ├── theme.dart                     # Цвета, AppBarOrnament, BodyOrnament, AppColors
 ├── fcm_service.dart               # Firebase Cloud Messaging
 ├── app_state.dart                 # ThemeMode, lang notifiers
-└── screens/
-    ├── splash_screen.dart         # Анимированный сплэш с казахским орнаментом
-    ├── login_screen.dart          # OTP + тоггл Пассажир/Водитель
-    ├── register_screen.dart       # Новый пользователь
-    ├── home_screen.dart           # Пассажир: заявки, попутки, активная карточка
-    ├── active_trip_screen.dart    # Экран активной поездки (статус-баннеры, отмена)
-    ├── history_screen.dart        # История завершённых поездок + детали
-    ├── profile_screen.dart        # Профиль пассажира + рейтинг
-    ├── driver_home_screen.dart    # Водитель: заявки, поездки, отклики, баланс
-    ├── driver_profile_screen.dart # Профиль водителя + авто
-    ├── car_info_screen.dart       # Данные автомобиля
-    ├── pending_screen.dart        # Ожидание верификации
-    └── info_screens.dart          # Поддержка, Настройки, О приложении
+├── screens/
+│   ├── splash_screen.dart         # Градиент + лого (zholaushy_icon.png) с анимацией (21.07.2026)
+│   ├── login_screen.dart          # OTP + тоггл Пассажир/Водитель
+│   ├── register_screen.dart       # Новый пользователь
+│   ├── home_screen.dart           # Пассажир: заявки, попутки, активная карточка
+│   ├── active_trip_screen.dart    # Экран активной поездки (статус-баннеры, отмена)
+│   ├── history_screen.dart        # История завершённых поездок + детали
+│   ├── profile_screen.dart        # Профиль пассажира + рейтинг
+│   ├── driver_home_screen.dart    # Водитель: заявки, поездки, отклики, баланс
+│   ├── driver_profile_screen.dart # Профиль водителя + авто
+│   ├── car_info_screen.dart       # Данные автомобиля
+│   ├── pending_screen.dart        # Ожидание верификации
+│   └── info_screens.dart          # Поддержка, Настройки, О приложении
+└── widgets/
+    ├── avatar_picker.dart         # AvatarView (чужой, только показ) + AvatarPicker (свой, загрузка)
+    ├── account_drawer.dart        # AccountDrawer — боковая шторка меню профиля
+    ├── route_picker_sheet.dart    # showRoutePickerSheet() — bottom sheet выбора маршрута
+    └── date_time_sheet.dart       # showDateTimeSheet() + DateTimeField — bottom sheet даты/времени
 ```
 
 ## Деплой (Railway)
